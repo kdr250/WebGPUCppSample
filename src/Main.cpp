@@ -46,6 +46,17 @@ int main()
     WGPUDevice device = Utils::requestDeviceSync(adapter, &deviceDesc);
     std::cout << "Got device: " << device << std::endl;
 
+    auto onDeviceError = [](WGPUErrorType type, const char* message, void* /* pUserData */)
+    {
+        std::cout << "Uncaptured device error: type " << type;
+        if (message)
+        {
+            std::cout << " (" << message << ")";
+        }
+        std::cout << std::endl;
+    };
+    wgpuDeviceSetUncapturedErrorCallback(device, onDeviceError, nullptr);
+
     // display some information about adapter
     Utils::inspectAdapter(adapter);
 
