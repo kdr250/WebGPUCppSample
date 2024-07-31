@@ -79,6 +79,25 @@ int main()
     };
     wgpuQueueOnSubmittedWorkDone(queue, onQueueWorkDone, nullptr /* pUserData */);
 
+    WGPUCommandEncoderDescriptor encoderDesc = {};
+    encoderDesc.nextInChain                  = nullptr;
+    encoderDesc.label                        = "My command encoder";
+    WGPUCommandEncoder encoder               = wgpuDeviceCreateCommandEncoder(device, &encoderDesc);
+
+    wgpuCommandEncoderInsertDebugMarker(encoder, "Do one thing");
+    wgpuCommandEncoderInsertDebugMarker(encoder, "Do another thing");
+
+    WGPUCommandBufferDescriptor cmdBufferDescriptor = {};
+    cmdBufferDescriptor.nextInChain                 = nullptr;
+    cmdBufferDescriptor.label                       = "Command buffer";
+    WGPUCommandBuffer command                       = wgpuCommandEncoderFinish(encoder, &cmdBufferDescriptor);
+    wgpuCommandEncoderRelease(encoder);
+
+    std::cout << "Submitting command..." << std::endl;
+    wgpuQueueSubmit(queue, 1, &command);
+    wgpuCommandBufferRelease(command);
+    std::cout << "Command submitted" << std::endl;
+
     wgpuQueueRelease(queue);
     wgpuDeviceRelease(device);
 
