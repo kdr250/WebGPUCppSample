@@ -27,8 +27,15 @@ int main()
     std::cout << "Got adapter: " << adapter << std::endl;
 
     std::cout << "Requesting device..." << std::endl;
-    WGPUDeviceDescriptor deviceDesc = {};
-    WGPUDevice device               = Utils::requestDeviceSync(adapter, &deviceDesc);
+    WGPUDeviceDescriptor deviceDesc     = {};
+    deviceDesc.nextInChain              = nullptr;
+    deviceDesc.label                    = "My Device";
+    deviceDesc.requiredFeatureCount     = 0;
+    deviceDesc.requiredLimits           = nullptr;
+    deviceDesc.defaultQueue.nextInChain = nullptr;
+    deviceDesc.defaultQueue.label       = "The default queue";
+    deviceDesc.deviceLostCallback       = nullptr;  // TODO
+    WGPUDevice device                   = Utils::requestDeviceSync(adapter, &deviceDesc);
     std::cout << "Got device: " << device << std::endl;
 
     // display some information about adapter
