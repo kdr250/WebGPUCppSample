@@ -46,6 +46,9 @@ int main()
 
     wgpuAdapterRelease(adapter);
 
+    // Display information about the device
+    Utils::inspectDevice(device);
+
     wgpuDeviceRelease(device);
 
     return 0;
