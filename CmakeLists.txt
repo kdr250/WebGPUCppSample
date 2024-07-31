@@ -1,0 +1,45 @@
+cmake_minimum_required(VERSION 3.0...3.25)
+
+project(
+    LearnWebGPU
+    VERSION 0.1.0
+    LANGUAGES CXX C
+)
+
+add_compile_options("$<$<C_COMPILER_ID:MSVC>:/utf-8>")
+add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
+add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/Zc:__cplusplus>")
+
+file(GLOB_RECURSE SOURCES "src/*.cpp")
+
+add_executable(
+    App
+    ${SOURCES}
+)
+
+set_target_properties(
+    App PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    COMPILE_WARNING_AS_ERROR ON
+)
+
+if (MSVC)
+    target_compile_options(App PRIVATE /W4)
+else()
+    target_compile_options(App PRIVATE -Wall -Wextra -pedantic)
+endif()
+
+if (XCODE)
+    set_target_properties(
+        App PROPERTIES
+        XCODE_GENERATE_SCHEME ON
+        XCODE_SCHEME_ENABLE_GPU_FRAME_CAPTURE_MODE "Metal"
+    )
+endif()
+
+add_custom_command(
+    TARGET App POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROJECT_SOURCE_DIR}/resources $<TARGET_FILE_DIR:App>/resources
+)
