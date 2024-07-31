@@ -26,6 +26,12 @@ int main()
     WGPUAdapter adapter                   = Utils::requestAdapterSync(instance, &adapterOpts);
     std::cout << "Got adapter: " << adapter << std::endl;
 
+    // display some information about adapter
+    Utils::inspectAdapter(adapter);
+
+    // We no longer need to use the instance once we have the adapter
+    wgpuInstanceRelease(instance);
+
     std::cout << "Requesting device..." << std::endl;
     WGPUDeviceDescriptor deviceDesc     = {};
     deviceDesc.nextInChain              = nullptr;
@@ -46,6 +52,7 @@ int main()
     WGPUDevice device = Utils::requestDeviceSync(adapter, &deviceDesc);
     std::cout << "Got device: " << device << std::endl;
 
+    // A function that is invoked whenever there is an error in the use of the device
     auto onDeviceError = [](WGPUErrorType type, const char* message, void* /* pUserData */)
     {
         std::cout << "Uncaptured device error: type " << type;
@@ -57,12 +64,7 @@ int main()
     };
     wgpuDeviceSetUncapturedErrorCallback(device, onDeviceError, nullptr);
 
-    // display some information about adapter
-    Utils::inspectAdapter(adapter);
-
-    // clean up the WebGPU instance
-    wgpuInstanceRelease(instance);
-
+    // We no longer need to access the adapter once we have the device
     wgpuAdapterRelease(adapter);
 
     // Display information about the device
