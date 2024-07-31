@@ -70,6 +70,16 @@ int main()
     // Display information about the device
     Utils::inspectDevice(device);
 
+    WGPUQueue queue = wgpuDeviceGetQueue(device);
+
+    // Add a callback to monitor the moment queued work finished
+    auto onQueueWorkDone = [](WGPUQueueWorkDoneStatus status, void* /* pUserData */)
+    {
+        std::cout << "Queued work finished with status: " << status << std::endl;
+    };
+    wgpuQueueOnSubmittedWorkDone(queue, onQueueWorkDone, nullptr /* pUserData */);
+
+    wgpuQueueRelease(queue);
     wgpuDeviceRelease(device);
 
     return 0;
