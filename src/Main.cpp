@@ -70,6 +70,41 @@ int main()
     // Display information about the device
     Utils::inspectDevice(device);
 
+    WGPUQueue queue = wgpuDeviceGetQueue(device);
+
+    // Add a callback to monitor the moment queued work finished
+    auto onQueueWorkDone = [](WGPUQueueWorkDoneStatus status, void* /* pUserData */)
+    {
+        std::cout << "Queued work finished with status: " << status << std::endl;
+    };
+    wgpuQueueOnSubmittedWorkDone(queue, onQueueWorkDone, nullptr /* pUserData */);
+
+    WGPUCommandEncoderDescriptor encoderDesc = {};
+    encoderDesc.nextInChain                  = nullptr;
+    encoderDesc.label                        = "My command encoder";
+    WGPUCommandEncoder encoder               = wgpuDeviceCreateCommandEncoder(device, &encoderDesc);
+
+    wgpuCommandEncoderInsertDebugMarker(encoder, "Do one thing");
+    wgpuCommandEncoderInsertDebugMarker(encoder, "Do another thing");
+
+    WGPUCommandBufferDescriptor cmdBufferDescriptor = {};
+    cmdBufferDescriptor.nextInChain                 = nullptr;
+    cmdBufferDescriptor.label                       = "Command buffer";
+    WGPUCommandBuffer command                       = wgpuCommandEncoderFinish(encoder, &cmdBufferDescriptor);
+    wgpuCommandEncoderRelease(encoder);
+
+    std::cout << "Submitting command..." << std::endl;
+    wgpuQueueSubmit(queue, 1, &command);
+    wgpuCommandBufferRelease(command);
+    std::cout << "Command submitted" << std::endl;
+
+    for (int i = 0; i < 5; ++i)
+    {
+        std::cout << "Tick/Poll device..." << std::endl;
+        wgpuDeviceTick(device);
+    }
+
+    wgpuQueueRelease(queue);
     wgpuDeviceRelease(device);
 
     return 0;
