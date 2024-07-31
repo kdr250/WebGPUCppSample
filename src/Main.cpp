@@ -26,6 +26,11 @@ int main()
     WGPUAdapter adapter                   = Utils::requestAdapterSync(instance, &adapterOpts);
     std::cout << "Got adapter: " << adapter << std::endl;
 
+    std::cout << "Requesting device..." << std::endl;
+    WGPUDeviceDescriptor deviceDesc = {};
+    WGPUDevice device               = Utils::requestDeviceSync(adapter, &deviceDesc);
+    std::cout << "Got device: " << device << std::endl;
+
     // display some information about adapter
     Utils::inspectAdapter(adapter);
 
@@ -33,6 +38,8 @@ int main()
     wgpuInstanceRelease(instance);
 
     wgpuAdapterRelease(adapter);
+
+    wgpuDeviceRelease(device);
 
     return 0;
 }

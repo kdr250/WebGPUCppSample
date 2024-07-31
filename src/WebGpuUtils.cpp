@@ -37,10 +37,36 @@ WGPUAdapter Utils::requestAdapterSync(WGPUInstance instance, const WGPURequestAd
     return userData.adapter;
 }
 
-// WGPUDevice Utils::requestDeviceSync(WGPUAdapter adapter, const WGPUDeviceDescriptor* descriptor)
-// {
-//     return WGPUDevice();
-// }
+WGPUDevice Utils::requestDeviceSync(WGPUAdapter adapter, const WGPUDeviceDescriptor* descriptor)
+{
+    struct UserData
+    {
+        WGPUDevice device = nullptr;
+        bool requestEnded = false;
+    };
+    UserData userData;
+
+    auto onDeviceRequestEnded =
+        [](WGPURequestDeviceStatus status, WGPUDevice device, const char* message, void* pUserData)
+    {
+        UserData& userData = *reinterpret_cast<UserData*>(pUserData);
+        if (status == WGPURequestDeviceStatus_Success)
+        {
+            userData.device = device;
+        }
+        else
+        {
+            std::cout << "Could not get WebGPU device: " << message << std::endl;
+        }
+        userData.requestEnded = true;
+    };
+
+    wgpuAdapterRequestDevice(adapter, descriptor, onDeviceRequestEnded, (void*)&userData);
+
+    assert(userData.requestEnded);
+
+    return userData.device;
+}
 
 void Utils::inspectAdapter(WGPUAdapter adapter)
 {
