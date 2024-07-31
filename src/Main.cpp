@@ -69,5 +69,7 @@ int main()
     // clean up the WebGPU instance
     wgpuInstanceRelease(instance);
 
+    wgpuAdapterRelease(adapter);
+
     return 0;
 }
