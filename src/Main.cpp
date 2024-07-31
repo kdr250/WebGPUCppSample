@@ -34,8 +34,16 @@ int main()
     deviceDesc.requiredLimits           = nullptr;
     deviceDesc.defaultQueue.nextInChain = nullptr;
     deviceDesc.defaultQueue.label       = "The default queue";
-    deviceDesc.deviceLostCallback       = nullptr;  // TODO
-    WGPUDevice device                   = Utils::requestDeviceSync(adapter, &deviceDesc);
+    deviceDesc.deviceLostCallback       = [](WGPUDeviceLostReason reason, const char* message, void* /* pUserData */)
+    {
+        std::cout << "Device lost: reason " << reason;
+        if (message)
+        {
+            std::cout << " (" << message << ")";
+        }
+        std::cout << std::endl;
+    };
+    WGPUDevice device = Utils::requestDeviceSync(adapter, &deviceDesc);
     std::cout << "Got device: " << device << std::endl;
 
     // display some information about adapter
