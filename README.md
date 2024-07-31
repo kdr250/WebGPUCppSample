@@ -1,5 +1,5 @@
 # WebGPUCppSample
-C++ + WebGUP のチュートリアルを試す用レポジトリ
+C++でWebGUP のチュートリアルを試す用レポジトリ
 
 ## 参考URL
 - [WebGPU C++ guide](https://eliemichel.github.io/LearnWebGPU/index.html)
