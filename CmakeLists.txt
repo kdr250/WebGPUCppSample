@@ -6,6 +6,8 @@ project(
     LANGUAGES CXX C
 )
 
+find_package(glfw3 CONFIG REQUIRED)
+
 include(FetchContent)
 
 FetchContent_Declare(
@@ -27,7 +29,9 @@ add_executable(
 )
 
 target_link_libraries(
-    App PRIVATE webgpu
+    App PRIVATE
+    webgpu
+    glfw
 )
 
 set_target_properties(
