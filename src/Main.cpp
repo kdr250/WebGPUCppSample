@@ -104,10 +104,9 @@ int main()
     wgpuCommandBufferRelease(command);
     std::cout << "Command submitted" << std::endl;
 
-    for (int i = 0; i < 5; ++i)
+    while (!glfwWindowShouldClose(window))
     {
-        std::cout << "Tick/Poll device..." << std::endl;
-        wgpuDeviceTick(device);
+        glfwPollEvents();
     }
 
     wgpuQueueRelease(queue);
