@@ -1,5 +1,10 @@
 cmake_minimum_required(VERSION 3.0...3.25)
 
+if (DEFINED ENV{VCPKG_ROOT} AND NOT DEFINED CMAKE_TOOLCHAIN_FILE)
+    cmake_path(SET VCPKG_PATH NORMALIZE $ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake)
+    set(CMAKE_TOOLCHAIN_FILE ${VCPKG_PATH} CACHE STRING "")
+endif()
+
 project(
     LearnWebGPU
     VERSION 0.1.0
