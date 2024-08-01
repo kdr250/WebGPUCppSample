@@ -4,6 +4,11 @@
 
 int main()
 {
+    glfwInit();
+    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+    GLFWwindow* window = glfwCreateWindow(640, 480, "Learn WebGPU", nullptr, nullptr);
+
     // create descriptor
     WGPUInstanceDescriptor desc = {};
     desc.nextInChain            = nullptr;
@@ -107,6 +112,9 @@ int main()
 
     wgpuQueueRelease(queue);
     wgpuDeviceRelease(device);
+
+    glfwDestroyWindow(window);
+    glfwTerminate();
 
     return 0;
 }
