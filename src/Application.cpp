@@ -1,4 +1,5 @@
 #include "Application.h"
+#include <glfw3webgpu.h>
 #include <iostream>
 #include "WebGpuUtils.h"
 
@@ -15,9 +16,11 @@ bool Application::Initialize()
 
     // Get adapter
     std::cout << "Requesting adapter..." << std::endl;
+    surface = glfwGetWGPUSurface(instance, window);
 
     WGPURequestAdapterOptions adapterOpts = {};
     adapterOpts.nextInChain               = nullptr;
+    adapterOpts.compatibleSurface         = surface;
 
     WGPUAdapter adapter = Utils::requestAdapterSync(instance, &adapterOpts);
     std::cout << "Got adapter: " << adapter << std::endl;

@@ -18,4 +18,5 @@ private:
     GLFWwindow* window;
     WGPUDevice device;
     WGPUQueue queue;
+    WGPUSurface surface;
 };
