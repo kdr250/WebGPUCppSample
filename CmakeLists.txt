@@ -11,23 +11,26 @@ project(
     LANGUAGES CXX C
 )
 
-find_package(glfw3 CONFIG REQUIRED)
-
 include(FetchContent)
+
+FetchContent_Declare(
+  glfw-light
+  URL      https://eliemichel.github.io/LearnWebGPU/_downloads/6873a344e35ea9f5e4fc7e5cc85d3ab8/glfw-3.4.0-light.zip
+  URL_HASH MD5=e6684142080457e9227e4f78a6f84fc2
+)
 
 FetchContent_Declare(
   webgpu
   GIT_REPOSITORY https://github.com/eliemichel/WebGPU-distribution
   GIT_TAG        dawn
 )
-FetchContent_MakeAvailable(webgpu)
 
 FetchContent_Declare(
     glfw3webgpu
     GIT_REPOSITORY https://github.com/eliemichel/glfw3webgpu
     GIT_TAG main
 )
-FetchContent_MakeAvailable(glfw3webgpu)
+FetchContent_MakeAvailable(glfw-light webgpu glfw3webgpu)
 
 add_compile_options("$<$<C_COMPILER_ID:MSVC>:/utf-8>")
 add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
@@ -42,8 +45,8 @@ add_executable(
 
 target_link_libraries(
     App PRIVATE
-    webgpu
     glfw
+    webgpu
     glfw3webgpu
 )
 
