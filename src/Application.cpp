@@ -62,12 +62,30 @@ bool Application::Initialize()
     wgpuDeviceSetUncapturedErrorCallback(device, onDeviceError, nullptr /* pUserData */);
 
     queue = wgpuDeviceGetQueue(device);
+
+    WGPUSurfaceConfiguration config = {};
+    config.nextInChain              = nullptr;
+    config.width                    = 640;
+    config.height                   = 480;
+    WGPUTextureFormat surfaceFormat = wgpuSurfaceGetPreferredFormat(surface, adapter);
+    config.format                   = surfaceFormat;
+    config.viewFormatCount          = 0;
+    config.viewFormats              = nullptr;
+    config.usage                    = WGPUTextureUsage_RenderAttachment;
+    config.device                   = device;
+    config.presentMode              = WGPUPresentMode_Fifo;
+    config.alphaMode                = WGPUCompositeAlphaMode_Auto;
+
+    wgpuSurfaceConfigure(surface, &config);
+
     return true;
 }
 
 void Application::Terminate()
 {
+    wgpuSurfaceUnconfigure(surface);
     wgpuQueueRelease(queue);
+    wgpuSurfaceRelease(surface);
     wgpuDeviceRelease(device);
     glfwDestroyWindow(window);
     glfwTerminate();
