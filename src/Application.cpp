@@ -26,6 +26,7 @@ public:
     wgpu::Surface surface;
     std::unique_ptr<wgpu::ErrorCallback> uncapturedErrorCallbackHandle;
     wgpu::TextureFormat surfaceFormat = wgpu::TextureFormat::Undefined;
+    wgpu::RenderPipeline pipeline;
 };
 
 Application::Application()
@@ -258,5 +259,5 @@ void Application::InitializePipeline()
     pipelineDesc.multisample.mask                   = ~0u;
     pipelineDesc.multisample.alphaToCoverageEnabled = false;
 
-    wgpu::RenderPipeline pipeline = data->device.createRenderPipeline(pipelineDesc);
+    data->pipeline = data->device.createRenderPipeline(pipelineDesc);
 }
