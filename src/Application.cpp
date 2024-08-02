@@ -281,6 +281,7 @@ void Application::InitializePipeline()
     pipelineDesc.multisample.count                  = 1;
     pipelineDesc.multisample.mask                   = ~0u;
     pipelineDesc.multisample.alphaToCoverageEnabled = false;
+    pipelineDesc.layout                             = nullptr;
 
     data->pipeline = data->device.createRenderPipeline(pipelineDesc);
 }
