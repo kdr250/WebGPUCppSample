@@ -216,12 +216,16 @@ wgpu::TextureView Application::GetNextSurfaceTextureView()
 void Application::InitializePipeline()
 {
     wgpu::RenderPipelineDescriptor pipelineDesc;
-    pipelineDesc.vertex.bufferCount   = 0;
-    pipelineDesc.vertex.buffers       = nullptr;
-    pipelineDesc.vertex.module        = shaderModule;  // TODO
-    pipelineDesc.vertex.entryPoint    = "vs_main";
-    pipelineDesc.vertex.constantCount = 0;
-    pipelineDesc.vertex.constants     = nullptr;
+    pipelineDesc.vertex.bufferCount         = 0;
+    pipelineDesc.vertex.buffers             = nullptr;
+    pipelineDesc.vertex.module              = shaderModule;  // TODO
+    pipelineDesc.vertex.entryPoint          = "vs_main";
+    pipelineDesc.vertex.constantCount       = 0;
+    pipelineDesc.vertex.constants           = nullptr;
+    pipelineDesc.primitive.topology         = wgpu::PrimitiveTopology::TriangleList;
+    pipelineDesc.primitive.stripIndexFormat = wgpu::IndexFormat::Undefined;
+    pipelineDesc.primitive.frontFace        = wgpu::FrontFace::CCW;
+    pipelineDesc.primitive.cullMode         = wgpu::CullMode::None;
 
     wgpu::RenderPipeline pipeline = data->device.createRenderPipeline(pipelineDesc);
 }
