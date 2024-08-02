@@ -114,6 +114,7 @@ void Application::MainLoop()
     renderPassColorAttachment.loadOp                        = WGPULoadOp_Clear;
     renderPassColorAttachment.storeOp                       = WGPUStoreOp_Store;
     renderPassColorAttachment.clearValue                    = WGPUColor {0.9, 0.1, 0.2, 1.0};
+    renderPassColorAttachment.depthSlice                    = WGPU_DEPTH_SLICE_UNDEFINED;
 
     renderPassDesc.colorAttachmentCount   = 1;
     renderPassDesc.colorAttachments       = &renderPassColorAttachment;
@@ -139,6 +140,8 @@ void Application::MainLoop()
 
     // At the end of the frame
     wgpuTextureViewRelease(targetView);
+
+    wgpuSurfacePresent(surface);
 
     wgpuDeviceTick(device);
 }
