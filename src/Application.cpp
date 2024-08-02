@@ -233,7 +233,8 @@ void Application::InitializePipeline()
     fragmentState.constantCount = 0;
     fragmentState.constants     = nullptr;
 
-    pipelineDesc.fragment = &fragmentState;
+    pipelineDesc.fragment     = &fragmentState;
+    pipelineDesc.depthStencil = nullptr;
 
     wgpu::RenderPipeline pipeline = data->device.createRenderPipeline(pipelineDesc);
 }
