@@ -25,6 +25,7 @@ public:
     wgpu::Queue queue;
     wgpu::Surface surface;
     std::unique_ptr<wgpu::ErrorCallback> uncapturedErrorCallbackHandle;
+    wgpu::TextureFormat surfaceFormat = wgpu::TextureFormat::Undefined;
 };
 
 Application::Application()
@@ -89,11 +90,11 @@ bool Application::Initialize()
     wgpu::SurfaceConfiguration config = {};
 
     // Configuration of the textures created for the underlying swap chain
-    config.width                      = 640;
-    config.height                     = 480;
-    config.usage                      = wgpu::TextureUsage::RenderAttachment;
-    wgpu::TextureFormat surfaceFormat = data->surface.getPreferredFormat(adapter);
-    config.format                     = surfaceFormat;
+    config.width        = 640;
+    config.height       = 480;
+    config.usage        = wgpu::TextureUsage::RenderAttachment;
+    data->surfaceFormat = data->surface.getPreferredFormat(adapter);
+    config.format       = data->surfaceFormat;
 
     // And we do not need any particular view format:
     config.viewFormatCount = 0;
@@ -233,7 +234,24 @@ void Application::InitializePipeline()
     fragmentState.constantCount = 0;
     fragmentState.constants     = nullptr;
 
-    pipelineDesc.fragment     = &fragmentState;
+    wgpu::BlendState blendState;
+    blendState.color.srcFactor = wgpu::BlendFactor::SrcAlpha;
+    blendState.color.dstFactor = wgpu::BlendFactor::OneMinusSrcAlpha;
+    blendState.color.operation = wgpu::BlendOperation::Add;
+    blendState.alpha.srcFactor = wgpu::BlendFactor::Zero;
+    blendState.alpha.dstFactor = wgpu::BlendFactor::One;
+    blendState.alpha.operation = wgpu::BlendOperation::Add;
+
+    wgpu::ColorTargetState colorTarget;
+    colorTarget.format    = data->surfaceFormat;
+    colorTarget.blend     = &blendState;
+    colorTarget.writeMask = wgpu::ColorWriteMask::All;
+
+    fragmentState.targetCount = 1;
+    fragmentState.targets     = &colorTarget;
+
+    pipelineDesc.fragment = &fragmentState;
+
     pipelineDesc.depthStencil = nullptr;
 
     wgpu::RenderPipeline pipeline = data->device.createRenderPipeline(pipelineDesc);
