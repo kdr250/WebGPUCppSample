@@ -254,5 +254,9 @@ void Application::InitializePipeline()
 
     pipelineDesc.depthStencil = nullptr;
 
+    pipelineDesc.multisample.count                  = 1;
+    pipelineDesc.multisample.mask                   = ~0u;
+    pipelineDesc.multisample.alphaToCoverageEnabled = false;
+
     wgpu::RenderPipeline pipeline = data->device.createRenderPipeline(pipelineDesc);
 }
