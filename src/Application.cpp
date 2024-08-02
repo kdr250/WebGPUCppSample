@@ -227,5 +227,13 @@ void Application::InitializePipeline()
     pipelineDesc.primitive.frontFace        = wgpu::FrontFace::CCW;
     pipelineDesc.primitive.cullMode         = wgpu::CullMode::None;
 
+    wgpu::FragmentState fragmentState;
+    fragmentState.module        = shaderModule;  // TODO
+    fragmentState.entryPoint    = "fs_main";
+    fragmentState.constantCount = 0;
+    fragmentState.constants     = nullptr;
+
+    pipelineDesc.fragment = &fragmentState;
+
     wgpu::RenderPipeline pipeline = data->device.createRenderPipeline(pipelineDesc);
 }
