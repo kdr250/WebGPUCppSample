@@ -11,7 +11,10 @@
 #endif  // __EMSCRIPTEN__
 
 #include <cassert>
+#include <fstream>
 #include <iostream>
+#include <sstream>
+#include <string>
 #include <vector>
 
 struct Application::AppData
@@ -25,6 +28,8 @@ public:
     wgpu::Queue queue;
     wgpu::Surface surface;
     std::unique_ptr<wgpu::ErrorCallback> uncapturedErrorCallbackHandle;
+    wgpu::TextureFormat surfaceFormat = wgpu::TextureFormat::Undefined;
+    wgpu::RenderPipeline pipeline;
 };
 
 Application::Application()
@@ -89,11 +94,11 @@ bool Application::Initialize()
     wgpu::SurfaceConfiguration config = {};
 
     // Configuration of the textures created for the underlying swap chain
-    config.width                      = 640;
-    config.height                     = 480;
-    config.usage                      = wgpu::TextureUsage::RenderAttachment;
-    wgpu::TextureFormat surfaceFormat = data->surface.getPreferredFormat(adapter);
-    config.format                     = surfaceFormat;
+    config.width        = 640;
+    config.height       = 480;
+    config.usage        = wgpu::TextureUsage::RenderAttachment;
+    data->surfaceFormat = data->surface.getPreferredFormat(adapter);
+    config.format       = data->surfaceFormat;
 
     // And we do not need any particular view format:
     config.viewFormatCount = 0;
@@ -107,11 +112,14 @@ bool Application::Initialize()
     // Release the adapter only after it has been fully utilized
     adapter.release();
 
+    InitializePipeline();
+
     return true;
 }
 
 void Application::Terminate()
 {
+    data->pipeline.release();
     data->surface.unconfigure();
     data->queue.release();
     data->surface.release();
@@ -155,6 +163,8 @@ void Application::MainLoop()
 
     // Create the render pass and end it immediately (we only clear the screen but do not draw anything)
     wgpu::RenderPassEncoder renderPass = encoder.beginRenderPass(renderPassDesc);
+    renderPass.setPipeline(data->pipeline);
+    renderPass.draw(3, 1, 0, 0);
     renderPass.end();
     renderPass.release();
 
@@ -211,4 +221,74 @@ wgpu::TextureView Application::GetNextSurfaceTextureView()
     wgpu::TextureView targetView   = texture.createView(viewDescriptor);
 
     return targetView;
+}
+
+void Application::InitializePipeline()
+{
+    std::ifstream shaderFile("resources/shader/sample.wgsl");
+    if (!shaderFile.is_open())
+    {
+        std::cerr << "failed to open file" << std::endl;
+        return;
+    }
+    std::stringstream sstream;
+    sstream << shaderFile.rdbuf();
+    std::string contents     = sstream.str();
+    const char* shaderSource = contents.c_str();
+
+    wgpu::ShaderModuleDescriptor shaderDesc;
+
+    wgpu::ShaderModuleWGSLDescriptor shaderCodeDesc;
+    shaderCodeDesc.chain.next       = nullptr;
+    shaderCodeDesc.chain.sType      = wgpu::SType::ShaderModuleWGSLDescriptor;
+    shaderDesc.nextInChain          = &shaderCodeDesc.chain;
+    shaderCodeDesc.code             = shaderSource;
+    wgpu::ShaderModule shaderModule = data->device.createShaderModule(shaderDesc);
+
+    wgpu::RenderPipelineDescriptor pipelineDesc;
+    pipelineDesc.vertex.bufferCount         = 0;
+    pipelineDesc.vertex.buffers             = nullptr;
+    pipelineDesc.vertex.module              = shaderModule;
+    pipelineDesc.vertex.entryPoint          = "vs_main";
+    pipelineDesc.vertex.constantCount       = 0;
+    pipelineDesc.vertex.constants           = nullptr;
+    pipelineDesc.primitive.topology         = wgpu::PrimitiveTopology::TriangleList;
+    pipelineDesc.primitive.stripIndexFormat = wgpu::IndexFormat::Undefined;
+    pipelineDesc.primitive.frontFace        = wgpu::FrontFace::CCW;
+    pipelineDesc.primitive.cullMode         = wgpu::CullMode::None;
+
+    wgpu::FragmentState fragmentState;
+    fragmentState.module        = shaderModule;
+    fragmentState.entryPoint    = "fs_main";
+    fragmentState.constantCount = 0;
+    fragmentState.constants     = nullptr;
+
+    wgpu::BlendState blendState;
+    blendState.color.srcFactor = wgpu::BlendFactor::SrcAlpha;
+    blendState.color.dstFactor = wgpu::BlendFactor::OneMinusSrcAlpha;
+    blendState.color.operation = wgpu::BlendOperation::Add;
+    blendState.alpha.srcFactor = wgpu::BlendFactor::Zero;
+    blendState.alpha.dstFactor = wgpu::BlendFactor::One;
+    blendState.alpha.operation = wgpu::BlendOperation::Add;
+
+    wgpu::ColorTargetState colorTarget;
+    colorTarget.format    = data->surfaceFormat;
+    colorTarget.blend     = &blendState;
+    colorTarget.writeMask = wgpu::ColorWriteMask::All;
+
+    fragmentState.targetCount = 1;
+    fragmentState.targets     = &colorTarget;
+
+    pipelineDesc.fragment = &fragmentState;
+
+    pipelineDesc.depthStencil = nullptr;
+
+    pipelineDesc.multisample.count                  = 1;
+    pipelineDesc.multisample.mask                   = ~0u;
+    pipelineDesc.multisample.alphaToCoverageEnabled = false;
+    pipelineDesc.layout                             = nullptr;
+
+    data->pipeline = data->device.createRenderPipeline(pipelineDesc);
+
+    shaderModule.release();
 }

@@ -1,7 +1,5 @@
 #pragma once
 
-#include <memory>
-
 namespace wgpu
 {
     class TextureView;
@@ -31,4 +29,6 @@ private:
     AppData* data;
 
     wgpu::TextureView GetNextSurfaceTextureView();
+
+    void InitializePipeline();
 };
