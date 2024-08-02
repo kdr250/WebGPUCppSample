@@ -11,7 +11,10 @@
 #endif  // __EMSCRIPTEN__
 
 #include <cassert>
+#include <fstream>
 #include <iostream>
+#include <sstream>
+#include <string>
 #include <vector>
 
 struct Application::AppData
@@ -217,6 +220,17 @@ wgpu::TextureView Application::GetNextSurfaceTextureView()
 
 void Application::InitializePipeline()
 {
+    std::ifstream shaderFile("resources/shader/sample.wgsl");
+    if (!shaderFile.is_open())
+    {
+        std::cerr << "failed to open file" << std::endl;
+        return;
+    }
+    std::stringstream sstream;
+    sstream << shaderFile.rdbuf();
+    std::string contents     = sstream.str();
+    const char* contentsChar = contents.c_str();
+
     wgpu::RenderPipelineDescriptor pipelineDesc;
     pipelineDesc.vertex.bufferCount         = 0;
     pipelineDesc.vertex.buffers             = nullptr;
