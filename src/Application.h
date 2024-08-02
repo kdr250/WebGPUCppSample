@@ -31,4 +31,6 @@ private:
     AppData* data;
 
     wgpu::TextureView GetNextSurfaceTextureView();
+
+    void InitializePipeline();
 };

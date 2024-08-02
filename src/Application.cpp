@@ -212,3 +212,16 @@ wgpu::TextureView Application::GetNextSurfaceTextureView()
 
     return targetView;
 }
+
+void Application::InitializePipeline()
+{
+    wgpu::RenderPipelineDescriptor pipelineDesc;
+    pipelineDesc.vertex.bufferCount   = 0;
+    pipelineDesc.vertex.buffers       = nullptr;
+    pipelineDesc.vertex.module        = shaderModule;  // TODO
+    pipelineDesc.vertex.entryPoint    = "vs_main";
+    pipelineDesc.vertex.constantCount = 0;
+    pipelineDesc.vertex.constants     = nullptr;
+
+    wgpu::RenderPipeline pipeline = data->device.createRenderPipeline(pipelineDesc);
+}
