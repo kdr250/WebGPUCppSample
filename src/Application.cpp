@@ -229,7 +229,16 @@ void Application::InitializePipeline()
     std::stringstream sstream;
     sstream << shaderFile.rdbuf();
     std::string contents     = sstream.str();
-    const char* contentsChar = contents.c_str();
+    const char* shaderSource = contents.c_str();
+
+    wgpu::ShaderModuleDescriptor shaderDesc;
+
+    wgpu::ShaderModuleWGSLDescriptor shaderCodeDesc;
+    shaderCodeDesc.chain.next       = nullptr;
+    shaderCodeDesc.chain.sType      = wgpu::SType::ShaderModuleWGSLDescriptor;
+    shaderDesc.nextInChain          = &shaderCodeDesc.chain;
+    shaderCodeDesc.code             = shaderSource;
+    wgpu::ShaderModule shaderModule = data->device.createShaderModule(shaderDesc);
 
     wgpu::RenderPipelineDescriptor pipelineDesc;
     pipelineDesc.vertex.bufferCount         = 0;
