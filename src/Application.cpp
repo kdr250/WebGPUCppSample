@@ -112,11 +112,14 @@ bool Application::Initialize()
     // Release the adapter only after it has been fully utilized
     adapter.release();
 
+    InitializePipeline();
+
     return true;
 }
 
 void Application::Terminate()
 {
+    data->pipeline.release();
     data->surface.unconfigure();
     data->queue.release();
     data->surface.release();
@@ -160,6 +163,8 @@ void Application::MainLoop()
 
     // Create the render pass and end it immediately (we only clear the screen but do not draw anything)
     wgpu::RenderPassEncoder renderPass = encoder.beginRenderPass(renderPassDesc);
+    renderPass.setPipeline(data->pipeline);
+    renderPass.draw(3, 1, 0, 0);
     renderPass.end();
     renderPass.release();
 
@@ -243,7 +248,7 @@ void Application::InitializePipeline()
     wgpu::RenderPipelineDescriptor pipelineDesc;
     pipelineDesc.vertex.bufferCount         = 0;
     pipelineDesc.vertex.buffers             = nullptr;
-    pipelineDesc.vertex.module              = shaderModule;  // TODO
+    pipelineDesc.vertex.module              = shaderModule;
     pipelineDesc.vertex.entryPoint          = "vs_main";
     pipelineDesc.vertex.constantCount       = 0;
     pipelineDesc.vertex.constants           = nullptr;
@@ -253,7 +258,7 @@ void Application::InitializePipeline()
     pipelineDesc.primitive.cullMode         = wgpu::CullMode::None;
 
     wgpu::FragmentState fragmentState;
-    fragmentState.module        = shaderModule;  // TODO
+    fragmentState.module        = shaderModule;
     fragmentState.entryPoint    = "fs_main";
     fragmentState.constantCount = 0;
     fragmentState.constants     = nullptr;
@@ -284,4 +289,6 @@ void Application::InitializePipeline()
     pipelineDesc.layout                             = nullptr;
 
     data->pipeline = data->device.createRenderPipeline(pipelineDesc);
+
+    shaderModule.release();
 }
