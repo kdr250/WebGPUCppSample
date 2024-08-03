@@ -306,6 +306,7 @@ void Application::PlayingWithBuffers()
     wgpu::Buffer buffer1        = data->device.createBuffer(bufferDesc);
 
     bufferDesc.label     = "Output buffer";
+    bufferDesc.usage     = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::MapRead;
     wgpu::Buffer buffer2 = data->device.createBuffer(bufferDesc);
 
     // Create some CPU-side data buffer (of size 16 bytes)
@@ -323,6 +324,12 @@ void Application::PlayingWithBuffers()
     encoder.release();
     data->queue.submit(1, &command);
     command.release();
+
+    auto onBuffer2Mapped = [](WGPUBufferMapAsyncStatus status, void* /* pUserData */)
+    {
+        std::cout << "Buffer 2 mapped with status " << status << std::endl;
+    };
+    wgpuBufferMapAsync(buffer2, wgpu::MapMode::Read, 0, 16, onBuffer2Mapped, nullptr /* pUserData */);
 
     // In Terminate()
     buffer1.release();
