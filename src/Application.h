@@ -31,4 +31,6 @@ private:
     wgpu::TextureView GetNextSurfaceTextureView();
 
     void InitializePipeline();
+
+    void PlayingWithBuffers();
 };

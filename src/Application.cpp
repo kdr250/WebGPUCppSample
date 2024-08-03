@@ -114,6 +114,8 @@ bool Application::Initialize()
 
     InitializePipeline();
 
+    PlayingWithBuffers();
+
     return true;
 }
 
@@ -291,4 +293,22 @@ void Application::InitializePipeline()
     data->pipeline = data->device.createRenderPipeline(pipelineDesc);
 
     shaderModule.release();
+}
+
+void Application::PlayingWithBuffers()
+{
+    // Experimentation for the "Playing with buffer" chapter
+    wgpu::BufferDescriptor bufferDesc;
+    bufferDesc.label            = "Some GPU-side data buffer";
+    bufferDesc.usage            = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::CopySrc;
+    bufferDesc.size             = 16;
+    bufferDesc.mappedAtCreation = false;
+    wgpu::Buffer buffer1        = data->device.createBuffer(bufferDesc);
+
+    bufferDesc.label     = "Output buffer";
+    wgpu::Buffer buffer2 = data->device.createBuffer(bufferDesc);
+
+    // In Terminate()
+    buffer1.release();
+    buffer2.release();
 }
