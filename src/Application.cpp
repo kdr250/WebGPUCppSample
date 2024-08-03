@@ -295,6 +295,21 @@ void Application::InitializePipeline()
     shaderModule.release();
 }
 
+// We define a function that hides implementation-specific variants of device polling:
+void wgpuPollEvent([[maybe_unused]] wgpu::Device device, [[maybe_unused]] bool yieldToWebBrowser)
+{
+#if defined(WEBGPU_BACKEND_DAWN)
+    device.tick();
+#elif defined(WEBGPU_BACKEND_WGPU)
+    device.poll(false);
+#elif defined(WEBGPU_BACKEND_EMSCRIPTEN)
+    if (yieldToWebBrowser)
+    {
+        emscripten_sleep(100);
+    }
+#endif
+}
+
 void Application::PlayingWithBuffers()
 {
     // Experimentation for the "Playing with buffer" chapter
@@ -325,11 +340,18 @@ void Application::PlayingWithBuffers()
     data->queue.submit(1, &command);
     command.release();
 
+    bool ready = false;
+
     auto onBuffer2Mapped = [](WGPUBufferMapAsyncStatus status, void* /* pUserData */)
     {
         std::cout << "Buffer 2 mapped with status " << status << std::endl;
     };
     wgpuBufferMapAsync(buffer2, wgpu::MapMode::Read, 0, 16, onBuffer2Mapped, nullptr /* pUserData */);
+
+    while (!ready)
+    {
+        wgpuPollEvent(data->device, true /* yieldToBrowser */);
+    }
 
     // In Terminate()
     buffer1.release();
