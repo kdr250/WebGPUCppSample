@@ -340,15 +340,41 @@ void Application::PlayingWithBuffers()
     data->queue.submit(1, &command);
     command.release();
 
-    bool ready = false;
-
-    auto onBuffer2Mapped = [](WGPUBufferMapAsyncStatus status, void* /* pUserData */)
+    struct Context
     {
-        std::cout << "Buffer 2 mapped with status " << status << std::endl;
+        bool ready;
+        wgpu::Buffer buffer;
     };
-    wgpuBufferMapAsync(buffer2, wgpu::MapMode::Read, 0, 16, onBuffer2Mapped, nullptr /* pUserData */);
 
-    while (!ready)
+    auto onBuffer2Mapped = [](WGPUBufferMapAsyncStatus status, void* pUserData)
+    {
+        Context* context = reinterpret_cast<Context*>(pUserData);
+        context->ready   = true;
+        std::cout << "Buffer 2 mapped with status " << status << std::endl;
+        if (status != wgpu::BufferMapAsyncStatus::Success)
+            return;
+
+        // Get a pointer to wherever the driver mapped the GPU memory to the RAM
+        uint8_t* bufferData = (uint8_t*)context->buffer.getConstMappedRange(0, 16);
+
+        std::cout << "bufferData = [";
+        for (int i = 0; i < 16; ++i)
+        {
+            if (i > 0)
+                std::cout << ", ";
+            std::cout << (int)bufferData[i];
+        }
+        std::cout << "]" << std::endl;
+
+        // Then do not forget to unmap the memory
+        context->buffer.unmap();
+    };
+
+    Context context = {false, buffer2};
+
+    wgpuBufferMapAsync(buffer2, wgpu::MapMode::Read, 0, 16, onBuffer2Mapped, (void*)&context);
+
+    while (!context.ready)
     {
         wgpuPollEvent(data->device, true /* yieldToBrowser */);
     }
