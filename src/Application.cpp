@@ -308,6 +308,14 @@ void Application::PlayingWithBuffers()
     bufferDesc.label     = "Output buffer";
     wgpu::Buffer buffer2 = data->device.createBuffer(bufferDesc);
 
+    // Create some CPU-side data buffer (of size 16 bytes)
+    std::vector<uint8_t> numbers(16);
+    for (uint8_t i = 0; i < 16; ++i)
+    {
+        numbers[i] = i;
+    }
+    data->queue.writeBuffer(buffer1, 0, numbers.data(), numbers.size());
+
     // In Terminate()
     buffer1.release();
     buffer2.release();
