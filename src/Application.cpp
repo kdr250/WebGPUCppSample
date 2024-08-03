@@ -316,6 +316,14 @@ void Application::PlayingWithBuffers()
     }
     data->queue.writeBuffer(buffer1, 0, numbers.data(), numbers.size());
 
+    wgpu::CommandEncoder encoder = data->device.createCommandEncoder(wgpu::Default);
+    encoder.copyBufferToBuffer(buffer1, 0, buffer2, 0, 16);
+
+    wgpu::CommandBuffer command = encoder.finish(wgpu::Default);
+    encoder.release();
+    data->queue.submit(1, &command);
+    command.release();
+
     // In Terminate()
     buffer1.release();
     buffer2.release();
