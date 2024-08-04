@@ -264,6 +264,21 @@ void Application::InitializePipeline()
     pipelineDesc.primitive.frontFace        = wgpu::FrontFace::CCW;
     pipelineDesc.primitive.cullMode         = wgpu::CullMode::None;
 
+    wgpu::VertexBufferLayout vertexBufferLayout;
+    wgpu::VertexAttribute positionAttrib;
+
+    positionAttrib.shaderLocation = 0;                              // Corresponds to @location(...)
+    positionAttrib.format         = wgpu::VertexFormat::Float32x2;  // Means vec2f in the shader
+    positionAttrib.offset         = 0;                              // Index of the first element
+
+    vertexBufferLayout.attributeCount = 1;
+    vertexBufferLayout.attributes     = &positionAttrib;
+    vertexBufferLayout.arrayStride    = 2 * sizeof(float);
+    vertexBufferLayout.stepMode       = wgpu::VertexStepMode::Vertex;
+
+    pipelineDesc.vertex.bufferCount = 1;
+    pipelineDesc.vertex.buffers     = &vertexBufferLayout;
+
     wgpu::FragmentState fragmentState;
     fragmentState.module        = shaderModule;
     fragmentState.entryPoint    = "fs_main";
