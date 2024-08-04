@@ -34,7 +34,7 @@ private:
 
     void InitializePipeline();
 
-    void PlayingWithBuffers();
+    void InitializeBuffers();
 
     wgpu::RequiredLimits GetRequiredLimits(wgpu::Adapter adapter) const;
 };

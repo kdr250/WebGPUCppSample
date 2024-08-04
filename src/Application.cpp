@@ -27,6 +27,8 @@ public:
     wgpu::Device device;
     wgpu::Queue queue;
     wgpu::Surface surface;
+    wgpu::Buffer vertexBuffer;
+    uint32_t vertexCount;
     std::unique_ptr<wgpu::ErrorCallback> uncapturedErrorCallbackHandle;
     wgpu::TextureFormat surfaceFormat = wgpu::TextureFormat::Undefined;
     wgpu::RenderPipeline pipeline;
@@ -116,13 +118,14 @@ bool Application::Initialize()
 
     InitializePipeline();
 
-    PlayingWithBuffers();
+    InitializeBuffers();
 
     return true;
 }
 
 void Application::Terminate()
 {
+    data->vertexBuffer.release();
     data->pipeline.release();
     data->surface.unconfigure();
     data->queue.release();
@@ -312,78 +315,26 @@ void wgpuPollEvent([[maybe_unused]] wgpu::Device device, [[maybe_unused]] bool y
 #endif
 }
 
-void Application::PlayingWithBuffers()
+void Application::InitializeBuffers()
 {
-    // Experimentation for the "Playing with buffer" chapter
+    // Vertex buffer data
+    // There are 2 floats per vertex, one for x and one for y.
+    // But in the end this is just a bunch of floats to the eyes of the GPU,
+    // the *layout* will tell how to interpret this.
+    std::vector<float> vertexData = {-0.5, -0.5, 0.5, -0.5, 0.0, 0.5};
+
+    // we will declare vertexCount as a member of the Application class
+    data->vertexCount = static_cast<uint32_t>(vertexData.size());
+
+    // Create vertex buffer
     wgpu::BufferDescriptor bufferDesc;
-    bufferDesc.label            = "Some GPU-side data buffer";
-    bufferDesc.usage            = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::CopySrc;
-    bufferDesc.size             = 16;
+    bufferDesc.size             = vertexData.size() * sizeof(float);
+    bufferDesc.usage            = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Vertex;
     bufferDesc.mappedAtCreation = false;
-    wgpu::Buffer buffer1        = data->device.createBuffer(bufferDesc);
+    data->vertexBuffer          = data->device.createBuffer(bufferDesc);
 
-    bufferDesc.label     = "Output buffer";
-    bufferDesc.usage     = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::MapRead;
-    wgpu::Buffer buffer2 = data->device.createBuffer(bufferDesc);
-
-    // Create some CPU-side data buffer (of size 16 bytes)
-    std::vector<uint8_t> numbers(16);
-    for (uint8_t i = 0; i < 16; ++i)
-    {
-        numbers[i] = i;
-    }
-    data->queue.writeBuffer(buffer1, 0, numbers.data(), numbers.size());
-
-    wgpu::CommandEncoder encoder = data->device.createCommandEncoder(wgpu::Default);
-    encoder.copyBufferToBuffer(buffer1, 0, buffer2, 0, 16);
-
-    wgpu::CommandBuffer command = encoder.finish(wgpu::Default);
-    encoder.release();
-    data->queue.submit(1, &command);
-    command.release();
-
-    struct Context
-    {
-        bool ready;
-        wgpu::Buffer buffer;
-    };
-
-    auto onBuffer2Mapped = [](WGPUBufferMapAsyncStatus status, void* pUserData)
-    {
-        Context* context = reinterpret_cast<Context*>(pUserData);
-        context->ready   = true;
-        std::cout << "Buffer 2 mapped with status " << status << std::endl;
-        if (status != wgpu::BufferMapAsyncStatus::Success)
-            return;
-
-        // Get a pointer to wherever the driver mapped the GPU memory to the RAM
-        uint8_t* bufferData = (uint8_t*)context->buffer.getConstMappedRange(0, 16);
-
-        std::cout << "bufferData = [";
-        for (int i = 0; i < 16; ++i)
-        {
-            if (i > 0)
-                std::cout << ", ";
-            std::cout << (int)bufferData[i];
-        }
-        std::cout << "]" << std::endl;
-
-        // Then do not forget to unmap the memory
-        context->buffer.unmap();
-    };
-
-    Context context = {false, buffer2};
-
-    wgpuBufferMapAsync(buffer2, wgpu::MapMode::Read, 0, 16, onBuffer2Mapped, (void*)&context);
-
-    while (!context.ready)
-    {
-        wgpuPollEvent(data->device, true /* yieldToBrowser */);
-    }
-
-    // In Terminate()
-    buffer1.release();
-    buffer2.release();
+    // Upload geometry data to the buffer
+    data->queue.writeBuffer(data->vertexBuffer, 0, vertexData.data(), bufferDesc.size);
 }
 
 wgpu::RequiredLimits Application::GetRequiredLimits(wgpu::Adapter adapter) const
