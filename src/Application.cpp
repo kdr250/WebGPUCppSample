@@ -11,11 +11,16 @@
 #endif  // __EMSCRIPTEN__
 
 #include <cassert>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <sstream>
 #include <string>
 #include <vector>
+
+namespace fs = std::filesystem;
+
+bool loadGeometry(const fs::path& path, std::vector<float>& pointData, std::vector<uint16_t>& indexData);
 
 struct Application::AppData
 {
@@ -412,7 +417,7 @@ wgpu::RequiredLimits Application::GetRequiredLimits(wgpu::Adapter adapter) const
     // We should also tell that we use 1 vertex buffers
     requiredLimits.limits.maxVertexBuffers = 1;
     // Maximum size of a buffer is 6 vertices of 2 float each
-    requiredLimits.limits.maxBufferSize = 6 * 5 * sizeof(float);
+    requiredLimits.limits.maxBufferSize = 15 * 5 * sizeof(float);
     // Maximum stride between 2 consecutive vertices in the vertex buffer
     requiredLimits.limits.maxVertexBufferArrayStride = 5 * sizeof(float);
     // There is a maximum of 3 float forwarded from vertex to fragment shader
@@ -425,4 +430,65 @@ wgpu::RequiredLimits Application::GetRequiredLimits(wgpu::Adapter adapter) const
     requiredLimits.limits.minUniformBufferOffsetAlignment = supportedLimits.limits.minUniformBufferOffsetAlignment;
 
     return requiredLimits;
+}
+
+bool loadGeometry(const fs::path& path, std::vector<float>& pointData, std::vector<uint16_t>& indexData)
+{
+    std::ifstream file(path);
+    if (!file.is_open())
+    {
+        return false;
+    }
+
+    pointData.clear();
+    indexData.clear();
+
+    enum class Section
+    {
+        None,
+        Points,
+        Indices,
+    };
+    Section currentSection = Section::None;
+
+    float value;
+    uint16_t index;
+    std::string line;
+    while (!file.eof())
+    {
+        getline(file, line);
+        if (line == "[points]")
+        {
+            currentSection = Section::Points;
+        }
+        else if (line == "[indices]")
+        {
+            currentSection = Section::Indices;
+        }
+        else if (line[0] == '#' || line.empty())
+        {
+            // Do nothing, this is a comment
+        }
+        else if (currentSection == Section::Points)
+        {
+            std::istringstream iss(line);
+            // Get x, y, r, g, b
+            for (int i = 0; i < 5; ++i)
+            {
+                iss >> value;
+                pointData.emplace_back(value);
+            }
+        }
+        else if (currentSection == Section::Indices)
+        {
+            std::istringstream iss(line);
+            // Get corner #0 #1 and #2
+            for (int i = 0; i < 3; ++i)
+            {
+                iss >> index;
+                indexData.emplace_back(index);
+            }
+        }
+    }
+    return true;
 }
