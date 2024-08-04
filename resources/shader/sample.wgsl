@@ -25,7 +25,7 @@ fn vs_main(in: VertexInput) -> VertexOutput
     var out: VertexOutput;
     out.position = vec4f(in.position, 0.0, 1.0);
     out.color = in.color;
-    return vec4f(in_vertex_position, 0.0, 1.0);
+    return out;
 }
 
 @fragment
