@@ -2,7 +2,9 @@
 
 namespace wgpu
 {
+    class Adapter;
     class TextureView;
+    struct RequiredLimits;
 }  // namespace wgpu
 
 class Application
@@ -32,5 +34,7 @@ private:
 
     void InitializePipeline();
 
-    void PlayingWithBuffers();
+    void InitializeBuffers();
+
+    wgpu::RequiredLimits GetRequiredLimits(wgpu::Adapter adapter) const;
 };
