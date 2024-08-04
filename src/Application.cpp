@@ -79,6 +79,8 @@ bool Application::Initialize()
     data->device = adapter.requestDevice(deviceDesc);
     std::cout << "Got device: " << data->device << std::endl;
 
+    GetRequiredLimits(adapter);
+
     data->uncapturedErrorCallbackHandle = data->device.setUncapturedErrorCallback(
         [](wgpu::ErrorType type, char const* message)
         {
@@ -382,4 +384,18 @@ void Application::PlayingWithBuffers()
     // In Terminate()
     buffer1.release();
     buffer2.release();
+}
+
+wgpu::RequiredLimits Application::GetRequiredLimits(wgpu::Adapter adapter) const
+{
+    wgpu::SupportedLimits supportedLimits;
+
+    adapter.getLimits(&supportedLimits);
+    std::cout << "adapter.maxVertexAttributes: " << supportedLimits.limits.maxVertexAttributes << std::endl;
+
+    data->device.getLimits(&supportedLimits);
+    std::cout << "device.maxVertexAttributes: " << supportedLimits.limits.maxVertexAttributes << std::endl;
+
+    // TODO
+    return wgpu::RequiredLimits();
 }
