@@ -20,6 +20,7 @@
 
 namespace fs = std::filesystem;
 
+wgpu::ShaderModule loadShaderModule(const fs::path& path, wgpu::Device device);
 bool loadGeometry(const fs::path& path, std::vector<float>& pointData, std::vector<uint16_t>& indexData);
 
 struct Application::AppData
@@ -247,25 +248,9 @@ wgpu::TextureView Application::GetNextSurfaceTextureView()
 
 void Application::InitializePipeline()
 {
-    std::ifstream shaderFile("resources/shader/sample.wgsl");
-    if (!shaderFile.is_open())
-    {
-        std::cerr << "failed to open file" << std::endl;
-        return;
-    }
-    std::stringstream sstream;
-    sstream << shaderFile.rdbuf();
-    std::string contents     = sstream.str();
-    const char* shaderSource = contents.c_str();
-
-    wgpu::ShaderModuleDescriptor shaderDesc;
-
-    wgpu::ShaderModuleWGSLDescriptor shaderCodeDesc;
-    shaderCodeDesc.chain.next       = nullptr;
-    shaderCodeDesc.chain.sType      = wgpu::SType::ShaderModuleWGSLDescriptor;
-    shaderDesc.nextInChain          = &shaderCodeDesc.chain;
-    shaderCodeDesc.code             = shaderSource;
-    wgpu::ShaderModule shaderModule = data->device.createShaderModule(shaderDesc);
+    std::cout << "Creating shader module..." << std::endl;
+    wgpu::ShaderModule shaderModule = loadShaderModule("resources/shader/sample.wgsl", data->device);
+    std::cout << "Shader module: " << shaderModule << std::endl;
 
     wgpu::RenderPipelineDescriptor pipelineDesc;
     pipelineDesc.vertex.bufferCount         = 0;
@@ -353,36 +338,11 @@ void wgpuPollEvent([[maybe_unused]] wgpu::Device device, [[maybe_unused]] bool y
 
 void Application::InitializeBuffers()
 {
-    // Define point data. The de-duplicated list of point positions
-    std::vector<float> pointData = {
-        // #0
-        -0.5,
-        -0.5,
-        1.0,
-        0.0,
-        0.0,
-        // #1
-        0.5,
-        -0.5,
-        0.0,
-        1.0,
-        0.0,
-        // #2
-        0.5,
-        0.5,
-        0.0,
-        0.0,
-        1.0,
-        // #3
-        -0.5,
-        0.5,
-        1.0,
-        1.0,
-        0.0,
-    };
+    std::vector<float> pointData;
+    std::vector<uint16_t> indexData;
 
-    // Define index data. This is a list of indices referencing positions in the pointData
-    std::vector<uint16_t> indexData = {0, 1, 2, 0, 2, 3};
+    bool success = loadGeometry("resources/shader/webgpu.txt", pointData, indexData);
+    assert(success && "Could not load geometry!");
 
     // we will declare indexCount as a member of the Application class
     data->indexCount = static_cast<uint32_t>(indexData.size());
@@ -430,6 +390,33 @@ wgpu::RequiredLimits Application::GetRequiredLimits(wgpu::Adapter adapter) const
     requiredLimits.limits.minUniformBufferOffsetAlignment = supportedLimits.limits.minUniformBufferOffsetAlignment;
 
     return requiredLimits;
+}
+
+wgpu::ShaderModule loadShaderModule(const fs::path& path, wgpu::Device device)
+{
+    std::ifstream file(path);
+    if (!file.is_open())
+    {
+        return nullptr;
+    }
+    file.seekg(0, std::ios::end);
+    size_t size = file.tellg();
+    std::string shaderSource(size, ' ');
+    file.seekg(0);
+    file.read(shaderSource.data(), size);
+
+    wgpu::ShaderModuleWGSLDescriptor shaderCodeDesc {};
+    shaderCodeDesc.chain.next  = nullptr;
+    shaderCodeDesc.chain.sType = wgpu::SType::ShaderModuleWGSLDescriptor;
+    shaderCodeDesc.code        = shaderSource.c_str();
+    wgpu::ShaderModuleDescriptor shaderDesc {};
+    shaderDesc.nextInChain = &shaderCodeDesc.chain;
+#ifdef WEBGPU_BACKEND_WGPU
+    shaderDesc.hintCount = 0;
+    shaderDesc.hints     = nullptr;
+#endif
+
+    return device.createShaderModule(shaderDesc);
 }
 
 bool loadGeometry(const fs::path& path, std::vector<float>& pointData, std::vector<uint16_t>& indexData)
