@@ -76,10 +76,10 @@ bool Application::Initialize()
             std::cout << " (" << message << ")";
         std::cout << std::endl;
     };
-    data->device = adapter.requestDevice(deviceDesc);
+    wgpu::RequiredLimits requiredLimits = GetRequiredLimits(adapter);
+    deviceDesc.requiredLimits           = &requiredLimits;
+    data->device                        = adapter.requestDevice(deviceDesc);
     std::cout << "Got device: " << data->device << std::endl;
-
-    GetRequiredLimits(adapter);
 
     data->uncapturedErrorCallbackHandle = data->device.setUncapturedErrorCallback(
         [](wgpu::ErrorType type, char const* message)
@@ -388,14 +388,25 @@ void Application::PlayingWithBuffers()
 
 wgpu::RequiredLimits Application::GetRequiredLimits(wgpu::Adapter adapter) const
 {
+    // Get adapter supported limits, in case we need them
     wgpu::SupportedLimits supportedLimits;
-
     adapter.getLimits(&supportedLimits);
-    std::cout << "adapter.maxVertexAttributes: " << supportedLimits.limits.maxVertexAttributes << std::endl;
 
-    data->device.getLimits(&supportedLimits);
-    std::cout << "device.maxVertexAttributes: " << supportedLimits.limits.maxVertexAttributes << std::endl;
+    wgpu::RequiredLimits requiredLimits = wgpu::Default;
+    // We use at most 1 vertex attribute for now
+    requiredLimits.limits.maxVertexAttributes = 1;
+    // We should also tell that we use 1 vertex buffers
+    requiredLimits.limits.maxVertexBuffers = 1;
+    // Maximum size of a buffer is 6 vertices of 2 float each
+    requiredLimits.limits.maxBufferSize = 6 * 2 * sizeof(float);
+    // Maximum stride between 2 consecutive vertices in the vertex buffer
+    requiredLimits.limits.maxVertexBufferArrayStride = 2 * sizeof(float);
 
-    // TODO
-    return wgpu::RequiredLimits();
+    // These two limits are different because they are "minimum" limits,
+    // they are the only ones we are may forward from the adapter's supported
+    // limits.
+    requiredLimits.limits.minUniformBufferOffsetAlignment = supportedLimits.limits.minUniformBufferOffsetAlignment;
+    requiredLimits.limits.minUniformBufferOffsetAlignment = supportedLimits.limits.minUniformBufferOffsetAlignment;
+
+    return requiredLimits;
 }
