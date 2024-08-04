@@ -171,7 +171,13 @@ void Application::MainLoop()
     // Create the render pass and end it immediately (we only clear the screen but do not draw anything)
     wgpu::RenderPassEncoder renderPass = encoder.beginRenderPass(renderPassDesc);
     renderPass.setPipeline(data->pipeline);
-    renderPass.draw(3, 1, 0, 0);
+
+    // Set vertex buffer while encoding the render pass
+    renderPass.setVertexBuffer(0, data->vertexBuffer, 0, data->vertexBuffer.getSize());
+
+    // We use the `vertexCount` variable instead of hard-coding the vertex count
+    renderPass.draw(data->vertexCount, 1, 0, 0);
+
     renderPass.end();
     renderPass.release();
 
@@ -334,12 +340,10 @@ void Application::InitializeBuffers()
 {
     // Vertex buffer data
     // There are 2 floats per vertex, one for x and one for y.
-    // But in the end this is just a bunch of floats to the eyes of the GPU,
-    // the *layout* will tell how to interpret this.
-    std::vector<float> vertexData = {-0.5, -0.5, 0.5, -0.5, 0.0, 0.5};
+    std::vector<float> vertexData = {-0.5, -0.5, 0.5, -0.5, 0.0, 0.5, -0.55f, -0.5, -0.05f, 0.5, -0.55f, 0.5};
 
     // we will declare vertexCount as a member of the Application class
-    data->vertexCount = static_cast<uint32_t>(vertexData.size());
+    data->vertexCount = static_cast<uint32_t>(vertexData.size() / 2);
 
     // Create vertex buffer
     wgpu::BufferDescriptor bufferDesc;
