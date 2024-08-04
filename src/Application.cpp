@@ -371,6 +371,8 @@ wgpu::RequiredLimits Application::GetRequiredLimits(wgpu::Adapter adapter) const
     requiredLimits.limits.maxBufferSize = 6 * 2 * sizeof(float);
     // Maximum stride between 2 consecutive vertices in the vertex buffer
     requiredLimits.limits.maxVertexBufferArrayStride = 2 * sizeof(float);
+    // There is a maximum of 3 float forwarded from vertex to fragment shader
+    requiredLimits.limits.maxInterStageShaderComponents = 3;
 
     // These two limits are different because they are "minimum" limits,
     // they are the only ones we are may forward from the adapter's supported
