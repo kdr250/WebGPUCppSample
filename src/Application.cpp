@@ -27,8 +27,9 @@ public:
     wgpu::Device device;
     wgpu::Queue queue;
     wgpu::Surface surface;
-    wgpu::Buffer vertexBuffer;
-    uint32_t vertexCount;
+    wgpu::Buffer pointBuffer;
+    wgpu::Buffer indexBuffer;
+    uint32_t indexCount;
     std::unique_ptr<wgpu::ErrorCallback> uncapturedErrorCallbackHandle;
     wgpu::TextureFormat surfaceFormat = wgpu::TextureFormat::Undefined;
     wgpu::RenderPipeline pipeline;
@@ -125,7 +126,8 @@ bool Application::Initialize()
 
 void Application::Terminate()
 {
-    data->vertexBuffer.release();
+    data->pointBuffer.release();
+    data->indexBuffer.release();
     data->pipeline.release();
     data->surface.unconfigure();
     data->queue.release();
@@ -172,11 +174,13 @@ void Application::MainLoop()
     wgpu::RenderPassEncoder renderPass = encoder.beginRenderPass(renderPassDesc);
     renderPass.setPipeline(data->pipeline);
 
-    // Set vertex buffer while encoding the render pass
-    renderPass.setVertexBuffer(0, data->vertexBuffer, 0, data->vertexBuffer.getSize());
+    // Set both vertex and index buffers
+    renderPass.setVertexBuffer(0, data->pointBuffer, 0, data->pointBuffer.getSize());
+    renderPass.setIndexBuffer(data->indexBuffer, wgpu::IndexFormat::Uint16, 0, data->indexBuffer.getSize());
 
-    // We use the `vertexCount` variable instead of hard-coding the vertex count
-    renderPass.draw(data->vertexCount, 1, 0, 0);
+    // Replace `draw()` with `drawIndexed()` and `vertexCount` with `indexCount`
+    // The extra argument is an offset within the index buffer.
+    renderPass.drawIndexed(data->indexCount, 1, 0, 0, 0);
 
     renderPass.end();
     renderPass.release();
@@ -270,7 +274,7 @@ void Application::InitializePipeline()
     pipelineDesc.primitive.frontFace        = wgpu::FrontFace::CCW;
     pipelineDesc.primitive.cullMode         = wgpu::CullMode::None;
 
-    wgpu::VertexBufferLayout vertexBufferLayout;
+    wgpu::VertexBufferLayout pointBufferLayout;
     std::vector<wgpu::VertexAttribute> vertexAttribs(2);
 
     // Describe the position attribute
@@ -283,13 +287,13 @@ void Application::InitializePipeline()
     vertexAttribs[1].format         = wgpu::VertexFormat::Float32x3;
     vertexAttribs[1].offset         = 2 * sizeof(float);
 
-    vertexBufferLayout.attributeCount = static_cast<uint32_t>(vertexAttribs.size());
-    vertexBufferLayout.attributes     = vertexAttribs.data();
-    vertexBufferLayout.arrayStride    = 5 * sizeof(float);
-    vertexBufferLayout.stepMode       = wgpu::VertexStepMode::Vertex;
+    pointBufferLayout.attributeCount = static_cast<uint32_t>(vertexAttribs.size());
+    pointBufferLayout.attributes     = vertexAttribs.data();
+    pointBufferLayout.arrayStride    = 5 * sizeof(float);
+    pointBufferLayout.stepMode       = wgpu::VertexStepMode::Vertex;
 
     pipelineDesc.vertex.bufferCount = 1;
-    pipelineDesc.vertex.buffers     = &vertexBufferLayout;
+    pipelineDesc.vertex.buffers     = &pointBufferLayout;
 
     wgpu::FragmentState fragmentState;
     fragmentState.module        = shaderModule;
@@ -344,58 +348,56 @@ void wgpuPollEvent([[maybe_unused]] wgpu::Device device, [[maybe_unused]] bool y
 
 void Application::InitializeBuffers()
 {
-    // Vertex buffer data
-    std::vector<float> vertexData = {// x0,  y0,  r0,  g0,  b0
-                                     -0.5,
-                                     -0.5,
-                                     1.0,
-                                     0.0,
-                                     0.0,
+    // Define point data. The de-duplicated list of point positions
+    std::vector<float> pointData = {
+        // #0
+        -0.5,
+        -0.5,
+        1.0,
+        0.0,
+        0.0,
+        // #1
+        0.5,
+        -0.5,
+        0.0,
+        1.0,
+        0.0,
+        // #2
+        0.5,
+        0.5,
+        0.0,
+        0.0,
+        1.0,
+        // #3
+        -0.5,
+        0.5,
+        1.0,
+        1.0,
+        0.0,
+    };
 
-                                     // x1,  y1,  r1,  g1,  b1
-                                     +0.5,
-                                     -0.5,
-                                     0.0,
-                                     1.0,
-                                     0.0,
+    // Define index data. This is a list of indices referencing positions in the pointData
+    std::vector<uint16_t> indexData = {0, 1, 2, 0, 2, 3};
 
-                                     // ...
-                                     +0.0,
-                                     +0.5,
-                                     0.0,
-                                     0.0,
-                                     1.0,
-                                     // ...
-                                     -0.55f,
-                                     -0.5,
-                                     1.0,
-                                     1.0,
-                                     0.0,
-                                     // ...
-                                     -0.05f,
-                                     +0.5,
-                                     1.0,
-                                     0.0,
-                                     1.0,
-                                     // ...
-                                     -0.55f,
-                                     +0.5,
-                                     0.0,
-                                     1.0,
-                                     1.0};
+    // we will declare indexCount as a member of the Application class
+    data->indexCount = static_cast<uint32_t>(indexData.size());
 
-    // we will declare vertexCount as a member of the Application class
-    data->vertexCount = static_cast<uint32_t>(vertexData.size() / 5);
-
-    // Create vertex buffer
+    // Create point buffer
     wgpu::BufferDescriptor bufferDesc;
-    bufferDesc.size             = vertexData.size() * sizeof(float);
+    bufferDesc.size             = pointData.size() * sizeof(float);
     bufferDesc.usage            = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Vertex;
     bufferDesc.mappedAtCreation = false;
-    data->vertexBuffer          = data->device.createBuffer(bufferDesc);
+    data->pointBuffer           = data->device.createBuffer(bufferDesc);
 
-    // Upload geometry data to the buffer
-    data->queue.writeBuffer(data->vertexBuffer, 0, vertexData.data(), bufferDesc.size);
+    data->queue.writeBuffer(data->pointBuffer, 0, pointData.data(), bufferDesc.size);
+
+    // Create index buffer
+    bufferDesc.size   = indexData.size() * sizeof(uint16_t);
+    bufferDesc.size   = (bufferDesc.size + 3) & ~3;  // round up to the next multiple of 4
+    bufferDesc.usage  = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Index;
+    data->indexBuffer = data->device.createBuffer(bufferDesc);
+
+    data->queue.writeBuffer(data->indexBuffer, 0, indexData.data(), bufferDesc.size);
 }
 
 wgpu::RequiredLimits Application::GetRequiredLimits(wgpu::Adapter adapter) const
