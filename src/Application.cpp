@@ -158,7 +158,7 @@ void Application::MainLoop()
     renderPassColorAttachment.resolveTarget                   = nullptr;
     renderPassColorAttachment.loadOp                          = wgpu::LoadOp::Clear;
     renderPassColorAttachment.storeOp                         = wgpu::StoreOp::Store;
-    renderPassColorAttachment.clearValue                      = WGPUColor {0.9, 0.1, 0.2, 1.0};
+    renderPassColorAttachment.clearValue                      = WGPUColor {0.05, 0.05, 0.05, 1.0};
 #ifndef WEBGPU_BACKEND_WGPU
     renderPassColorAttachment.depthSlice = WGPU_DEPTH_SLICE_UNDEFINED;
 #endif  // NOT WEBGPU_BACKEND_WGPU
@@ -271,15 +271,21 @@ void Application::InitializePipeline()
     pipelineDesc.primitive.cullMode         = wgpu::CullMode::None;
 
     wgpu::VertexBufferLayout vertexBufferLayout;
-    wgpu::VertexAttribute positionAttrib;
+    std::vector<wgpu::VertexAttribute> vertexAttribs(2);
 
-    positionAttrib.shaderLocation = 0;                              // Corresponds to @location(...)
-    positionAttrib.format         = wgpu::VertexFormat::Float32x2;  // Means vec2f in the shader
-    positionAttrib.offset         = 0;                              // Index of the first element
+    // Describe the position attribute
+    vertexAttribs[0].shaderLocation = 0;  // @location(0)
+    vertexAttribs[0].format         = wgpu::VertexFormat::Float32x2;
+    vertexAttribs[0].offset         = 0;
 
-    vertexBufferLayout.attributeCount = 1;
-    vertexBufferLayout.attributes     = &positionAttrib;
-    vertexBufferLayout.arrayStride    = 2 * sizeof(float);
+    // Describe the color attribute
+    vertexAttribs[1].shaderLocation = 1;  // @location(1)
+    vertexAttribs[1].format         = wgpu::VertexFormat::Float32x3;
+    vertexAttribs[1].offset         = 2 * sizeof(float);
+
+    vertexBufferLayout.attributeCount = static_cast<uint32_t>(vertexAttribs.size());
+    vertexBufferLayout.attributes     = vertexAttribs.data();
+    vertexBufferLayout.arrayStride    = 5 * sizeof(float);
     vertexBufferLayout.stepMode       = wgpu::VertexStepMode::Vertex;
 
     pipelineDesc.vertex.bufferCount = 1;
@@ -339,11 +345,47 @@ void wgpuPollEvent([[maybe_unused]] wgpu::Device device, [[maybe_unused]] bool y
 void Application::InitializeBuffers()
 {
     // Vertex buffer data
-    // There are 2 floats per vertex, one for x and one for y.
-    std::vector<float> vertexData = {-0.5, -0.5, 0.5, -0.5, 0.0, 0.5, -0.55f, -0.5, -0.05f, 0.5, -0.55f, 0.5};
+    std::vector<float> vertexData = {// x0,  y0,  r0,  g0,  b0
+                                     -0.5,
+                                     -0.5,
+                                     1.0,
+                                     0.0,
+                                     0.0,
+
+                                     // x1,  y1,  r1,  g1,  b1
+                                     +0.5,
+                                     -0.5,
+                                     0.0,
+                                     1.0,
+                                     0.0,
+
+                                     // ...
+                                     +0.0,
+                                     +0.5,
+                                     0.0,
+                                     0.0,
+                                     1.0,
+                                     // ...
+                                     -0.55f,
+                                     -0.5,
+                                     1.0,
+                                     1.0,
+                                     0.0,
+                                     // ...
+                                     -0.05f,
+                                     +0.5,
+                                     1.0,
+                                     0.0,
+                                     1.0,
+                                     // ...
+                                     -0.55f,
+                                     +0.5,
+                                     0.0,
+                                     1.0,
+                                     1.0};
 
     // we will declare vertexCount as a member of the Application class
-    data->vertexCount = static_cast<uint32_t>(vertexData.size() / 2);
+    data->vertexCount = static_cast<uint32_t>(vertexData.size() / 5);
 
     // Create vertex buffer
     wgpu::BufferDescriptor bufferDesc;
@@ -364,13 +406,15 @@ wgpu::RequiredLimits Application::GetRequiredLimits(wgpu::Adapter adapter) const
 
     wgpu::RequiredLimits requiredLimits = wgpu::Default;
     // We use at most 1 vertex attribute for now
-    requiredLimits.limits.maxVertexAttributes = 1;
+    requiredLimits.limits.maxVertexAttributes = 2;
     // We should also tell that we use 1 vertex buffers
     requiredLimits.limits.maxVertexBuffers = 1;
     // Maximum size of a buffer is 6 vertices of 2 float each
-    requiredLimits.limits.maxBufferSize = 6 * 2 * sizeof(float);
+    requiredLimits.limits.maxBufferSize = 6 * 5 * sizeof(float);
     // Maximum stride between 2 consecutive vertices in the vertex buffer
-    requiredLimits.limits.maxVertexBufferArrayStride = 2 * sizeof(float);
+    requiredLimits.limits.maxVertexBufferArrayStride = 5 * sizeof(float);
+    // There is a maximum of 3 float forwarded from vertex to fragment shader
+    requiredLimits.limits.maxInterStageShaderComponents = 3;
 
     // These two limits are different because they are "minimum" limits,
     // they are the only ones we are may forward from the adapter's supported
