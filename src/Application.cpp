@@ -174,11 +174,13 @@ void Application::MainLoop()
     wgpu::RenderPassEncoder renderPass = encoder.beginRenderPass(renderPassDesc);
     renderPass.setPipeline(data->pipeline);
 
-    // Set vertex buffer while encoding the render pass
+    // Set both vertex and index buffers
     renderPass.setVertexBuffer(0, data->pointBuffer, 0, data->pointBuffer.getSize());
+    renderPass.setIndexBuffer(data->indexBuffer, wgpu::IndexFormat::Uint16, 0, data->indexBuffer.getSize());
 
-    // We use the `indexCount` variable instead of hard-coding the vertex count
-    renderPass.draw(data->indexCount, 1, 0, 0);
+    // Replace `draw()` with `drawIndexed()` and `vertexCount` with `indexCount`
+    // The extra argument is an offset within the index buffer.
+    renderPass.drawIndexed(data->indexCount, 1, 0, 0, 0);
 
     renderPass.end();
     renderPass.release();
@@ -355,8 +357,8 @@ void Application::InitializeBuffers()
         0.0,
         0.0,
         // #1
-        -0.5,
         0.5,
+        -0.5,
         0.0,
         1.0,
         0.0,
