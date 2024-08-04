@@ -380,15 +380,22 @@ void Application::InitializeBuffers()
     // we will declare indexCount as a member of the Application class
     data->indexCount = static_cast<uint32_t>(indexData.size());
 
-    // Create vertex buffer
+    // Create point buffer
     wgpu::BufferDescriptor bufferDesc;
     bufferDesc.size             = pointData.size() * sizeof(float);
     bufferDesc.usage            = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Vertex;
     bufferDesc.mappedAtCreation = false;
     data->pointBuffer           = data->device.createBuffer(bufferDesc);
 
-    // Upload geometry data to the buffer
     data->queue.writeBuffer(data->pointBuffer, 0, pointData.data(), bufferDesc.size);
+
+    // Create index buffer
+    bufferDesc.size   = indexData.size() * sizeof(uint16_t);
+    bufferDesc.size   = (bufferDesc.size + 3) & ~3;  // round up to the next multiple of 4
+    bufferDesc.usage  = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Index;
+    data->indexBuffer = data->device.createBuffer(bufferDesc);
+
+    data->queue.writeBuffer(data->indexBuffer, 0, indexData.data(), bufferDesc.size);
 }
 
 wgpu::RequiredLimits Application::GetRequiredLimits(wgpu::Adapter adapter) const
