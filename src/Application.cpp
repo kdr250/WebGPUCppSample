@@ -5,17 +5,24 @@
 
 #include <GLFW/glfw3.h>
 #include <glfw3webgpu.h>
+#include <magic_enum.hpp>
 
 #ifdef __EMSCRIPTEN__
     #include <emscripten.h>
 #endif  // __EMSCRIPTEN__
 
 #include <cassert>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <sstream>
 #include <string>
 #include <vector>
+
+namespace fs = std::filesystem;
+
+wgpu::ShaderModule loadShaderModule(const fs::path& path, wgpu::Device device);
+bool loadGeometry(const fs::path& path, std::vector<float>& pointData, std::vector<uint16_t>& indexData);
 
 struct Application::AppData
 {
@@ -99,11 +106,16 @@ bool Application::Initialize()
     wgpu::SurfaceConfiguration config = {};
 
     // Configuration of the textures created for the underlying swap chain
-    config.width        = 640;
-    config.height       = 480;
-    config.usage        = wgpu::TextureUsage::RenderAttachment;
-    data->surfaceFormat = data->surface.getPreferredFormat(adapter);
-    config.format       = data->surfaceFormat;
+    config.width  = 640;
+    config.height = 480;
+    config.usage  = wgpu::TextureUsage::RenderAttachment;
+#ifdef WEBGPU_BACKEND_WGPU
+    data->surfaceFormat = surface.getPreferredFormat(adapter);
+#else
+    data->surfaceFormat = wgpu::TextureFormat::BGRA8Unorm;
+#endif
+    config.format = data->surfaceFormat;
+    std::cout << "Swapchain format: " << magic_enum::enum_name<WGPUTextureFormat>(data->surfaceFormat) << std::endl;
 
     // And we do not need any particular view format:
     config.viewFormatCount = 0;
@@ -242,25 +254,9 @@ wgpu::TextureView Application::GetNextSurfaceTextureView()
 
 void Application::InitializePipeline()
 {
-    std::ifstream shaderFile("resources/shader/sample.wgsl");
-    if (!shaderFile.is_open())
-    {
-        std::cerr << "failed to open file" << std::endl;
-        return;
-    }
-    std::stringstream sstream;
-    sstream << shaderFile.rdbuf();
-    std::string contents     = sstream.str();
-    const char* shaderSource = contents.c_str();
-
-    wgpu::ShaderModuleDescriptor shaderDesc;
-
-    wgpu::ShaderModuleWGSLDescriptor shaderCodeDesc;
-    shaderCodeDesc.chain.next       = nullptr;
-    shaderCodeDesc.chain.sType      = wgpu::SType::ShaderModuleWGSLDescriptor;
-    shaderDesc.nextInChain          = &shaderCodeDesc.chain;
-    shaderCodeDesc.code             = shaderSource;
-    wgpu::ShaderModule shaderModule = data->device.createShaderModule(shaderDesc);
+    std::cout << "Creating shader module..." << std::endl;
+    wgpu::ShaderModule shaderModule = loadShaderModule("resources/shader/sample.wgsl", data->device);
+    std::cout << "Shader module: " << shaderModule << std::endl;
 
     wgpu::RenderPipelineDescriptor pipelineDesc;
     pipelineDesc.vertex.bufferCount         = 0;
@@ -348,36 +344,11 @@ void wgpuPollEvent([[maybe_unused]] wgpu::Device device, [[maybe_unused]] bool y
 
 void Application::InitializeBuffers()
 {
-    // Define point data. The de-duplicated list of point positions
-    std::vector<float> pointData = {
-        // #0
-        -0.5,
-        -0.5,
-        1.0,
-        0.0,
-        0.0,
-        // #1
-        0.5,
-        -0.5,
-        0.0,
-        1.0,
-        0.0,
-        // #2
-        0.5,
-        0.5,
-        0.0,
-        0.0,
-        1.0,
-        // #3
-        -0.5,
-        0.5,
-        1.0,
-        1.0,
-        0.0,
-    };
+    std::vector<float> pointData;
+    std::vector<uint16_t> indexData;
 
-    // Define index data. This is a list of indices referencing positions in the pointData
-    std::vector<uint16_t> indexData = {0, 1, 2, 0, 2, 3};
+    bool success = loadGeometry("resources/shader/webgpu.txt", pointData, indexData);
+    assert(success && "Could not load geometry!");
 
     // we will declare indexCount as a member of the Application class
     data->indexCount = static_cast<uint32_t>(indexData.size());
@@ -412,7 +383,7 @@ wgpu::RequiredLimits Application::GetRequiredLimits(wgpu::Adapter adapter) const
     // We should also tell that we use 1 vertex buffers
     requiredLimits.limits.maxVertexBuffers = 1;
     // Maximum size of a buffer is 6 vertices of 2 float each
-    requiredLimits.limits.maxBufferSize = 6 * 5 * sizeof(float);
+    requiredLimits.limits.maxBufferSize = 15 * 5 * sizeof(float);
     // Maximum stride between 2 consecutive vertices in the vertex buffer
     requiredLimits.limits.maxVertexBufferArrayStride = 5 * sizeof(float);
     // There is a maximum of 3 float forwarded from vertex to fragment shader
@@ -425,4 +396,92 @@ wgpu::RequiredLimits Application::GetRequiredLimits(wgpu::Adapter adapter) const
     requiredLimits.limits.minUniformBufferOffsetAlignment = supportedLimits.limits.minUniformBufferOffsetAlignment;
 
     return requiredLimits;
+}
+
+wgpu::ShaderModule loadShaderModule(const fs::path& path, wgpu::Device device)
+{
+    std::ifstream file(path);
+    if (!file.is_open())
+    {
+        return nullptr;
+    }
+    file.seekg(0, std::ios::end);
+    size_t size = file.tellg();
+    std::string shaderSource(size, ' ');
+    file.seekg(0);
+    file.read(shaderSource.data(), size);
+
+    wgpu::ShaderModuleWGSLDescriptor shaderCodeDesc {};
+    shaderCodeDesc.chain.next  = nullptr;
+    shaderCodeDesc.chain.sType = wgpu::SType::ShaderModuleWGSLDescriptor;
+    shaderCodeDesc.code        = shaderSource.c_str();
+    wgpu::ShaderModuleDescriptor shaderDesc {};
+    shaderDesc.nextInChain = &shaderCodeDesc.chain;
+#ifdef WEBGPU_BACKEND_WGPU
+    shaderDesc.hintCount = 0;
+    shaderDesc.hints     = nullptr;
+#endif
+
+    return device.createShaderModule(shaderDesc);
+}
+
+bool loadGeometry(const fs::path& path, std::vector<float>& pointData, std::vector<uint16_t>& indexData)
+{
+    std::ifstream file(path);
+    if (!file.is_open())
+    {
+        return false;
+    }
+
+    pointData.clear();
+    indexData.clear();
+
+    enum class Section
+    {
+        None,
+        Points,
+        Indices,
+    };
+    Section currentSection = Section::None;
+
+    float value;
+    uint16_t index;
+    std::string line;
+    while (!file.eof())
+    {
+        getline(file, line);
+        if (line == "[points]")
+        {
+            currentSection = Section::Points;
+        }
+        else if (line == "[indices]")
+        {
+            currentSection = Section::Indices;
+        }
+        else if (line[0] == '#' || line.empty())
+        {
+            // Do nothing, this is a comment
+        }
+        else if (currentSection == Section::Points)
+        {
+            std::istringstream iss(line);
+            // Get x, y, r, g, b
+            for (int i = 0; i < 5; ++i)
+            {
+                iss >> value;
+                pointData.emplace_back(value);
+            }
+        }
+        else if (currentSection == Section::Indices)
+        {
+            std::istringstream iss(line);
+            // Get corner #0 #1 and #2
+            for (int i = 0; i < 3; ++i)
+            {
+                iss >> index;
+                indexData.emplace_back(index);
+            }
+        }
+    }
+    return true;
 }
