@@ -24,8 +24,8 @@ namespace fs = std::filesystem;
 
 struct MyUniforms
 {
-    float time;
     std::array<float, 4> color;
+    float time;
 };
 
 wgpu::ShaderModule loadShaderModule(const fs::path& path, wgpu::Device device);

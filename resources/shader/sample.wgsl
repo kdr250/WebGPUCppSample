@@ -24,8 +24,8 @@ struct VertexOutput
  */
 struct MyUniforms
 {
-    color: vec4f,
     time: f32,
+    color: vec4f,
 };
 
 @group(0) @binding(0) var<uniform> uMyUniforms: MyUniforms;
