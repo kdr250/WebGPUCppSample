@@ -33,6 +33,7 @@ static_assert(sizeof(MyUniforms) % 16 == 0);
 
 wgpu::ShaderModule loadShaderModule(const fs::path& path, wgpu::Device device);
 bool loadGeometry(const fs::path& path, std::vector<float>& pointData, std::vector<uint16_t>& indexData);
+uint32_t ceilToNextMultiple(uint32_t value, uint32_t step);
 
 struct Application::AppData
 {
@@ -56,6 +57,7 @@ public:
     wgpu::BindGroup bindGroup;
 
     MyUniforms uniforms;
+    uint32_t uniformStride;
 };
 
 Application::Application()
@@ -213,11 +215,16 @@ void Application::MainLoop()
     renderPass.setVertexBuffer(0, data->pointBuffer, 0, data->pointBuffer.getSize());
     renderPass.setIndexBuffer(data->indexBuffer, wgpu::IndexFormat::Uint16, 0, data->indexBuffer.getSize());
 
-    // Set binding group
-    renderPass.setBindGroup(0, data->bindGroup, 0, nullptr);
+    uint32_t dynamicOffset = 0;
 
-    // Replace `draw()` with `drawIndexed()` and `vertexCount` with `indexCount`
-    // The extra argument is an offset within the index buffer.
+    // Set binding group
+    dynamicOffset = 0 * data->uniformStride;
+    renderPass.setBindGroup(0, data->bindGroup, 1, &dynamicOffset);
+    renderPass.drawIndexed(data->indexCount, 1, 0, 0, 0);
+
+    // Set binding group with a different uniform offset
+    dynamicOffset = 1 * data->uniformStride;
+    renderPass.setBindGroup(0, data->bindGroup, 1, &dynamicOffset);
     renderPass.drawIndexed(data->indexCount, 1, 0, 0, 0);
 
     renderPass.end();
@@ -353,6 +360,7 @@ void Application::InitializePipeline()
     bindingLayout.visibility                 = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
     bindingLayout.buffer.type                = wgpu::BufferBindingType::Uniform;
     bindingLayout.buffer.minBindingSize      = sizeof(MyUniforms);
+    bindingLayout.buffer.hasDynamicOffset    = true;
 
     // Create a bind group layout
     wgpu::BindGroupLayoutDescriptor bindGroupLayoutDesc;
@@ -419,17 +427,30 @@ void Application::InitializeBuffers()
     data->queue.writeBuffer(data->indexBuffer, 0, indexData.data(), bufferDesc.size);
 
     // Create uniform buffer. The buffer will only contain 1 float with the value of uTime
-    bufferDesc.size             = sizeof(MyUniforms);
+    wgpu::SupportedLimits supportedLimits;
+    data->device.getLimits(&supportedLimits);
+    wgpu::Limits deviceLimits = supportedLimits.limits;
+    data->uniformStride =
+        ceilToNextMultiple((uint32_t)sizeof(MyUniforms), (uint32_t)deviceLimits.minUniformBufferOffsetAlignment);
+    bufferDesc.size             = data->uniformStride + sizeof(MyUniforms);
     bufferDesc.usage            = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Uniform;
     bufferDesc.mappedAtCreation = false;
     data->uniformBuffer         = data->device.createBuffer(bufferDesc);
 
     // Upload the initial value of the uniforms
     MyUniforms uniforms;
+
+    // Upload first value
     uniforms.time  = 1.0f;
     uniforms.color = {0.0f, 1.0f, 0.4f, 1.0f};
     data->uniforms = uniforms;
     data->queue.writeBuffer(data->uniformBuffer, 0, &data->uniforms, sizeof(MyUniforms));
+
+    // Upload second value
+    uniforms.time  = 1.0f;
+    uniforms.color = {1.0f, 1.0f, 1.0f, 0.7f};
+    data->uniforms = uniforms;
+    data->queue.writeBuffer(data->uniformBuffer, data->uniformStride, &data->uniforms, sizeof(MyUniforms));
 
     // Create a binding
     wgpu::BindGroupEntry binding;
@@ -469,6 +490,8 @@ wgpu::RequiredLimits Application::GetRequiredLimits(wgpu::Adapter adapter) const
     requiredLimits.limits.maxUniformBuffersPerShaderStage = 1;
     // Uniform structs have a size of maximum 16 float (more than what we need)
     requiredLimits.limits.maxUniformBufferBindingSize = 16 * 4;
+    // Extra limit requirement
+    requiredLimits.limits.maxDynamicUniformBuffersPerPipelineLayout = 1;
 
     // These two limits are different because they are "minimum" limits,
     // they are the only ones we are may forward from the adapter's supported
@@ -477,6 +500,12 @@ wgpu::RequiredLimits Application::GetRequiredLimits(wgpu::Adapter adapter) const
     requiredLimits.limits.minUniformBufferOffsetAlignment = supportedLimits.limits.minUniformBufferOffsetAlignment;
 
     return requiredLimits;
+}
+
+uint32_t ceilToNextMultiple(uint32_t value, uint32_t step)
+{
+    uint32_t devideAndCeil = value / step + (value % step == 0 ? 0 : 1);
+    return step * devideAndCeil;
 }
 
 wgpu::ShaderModule loadShaderModule(const fs::path& path, wgpu::Device device)
