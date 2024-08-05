@@ -347,7 +347,7 @@ void Application::InitializePipeline()
     // Create binding layout
     wgpu::BindGroupLayoutEntry bindingLayout = wgpu::Default;
     bindingLayout.binding                    = 0;
-    bindingLayout.visibility                 = wgpu::ShaderStage::Vertex;
+    bindingLayout.visibility                 = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
     bindingLayout.buffer.type                = wgpu::BufferBindingType::Uniform;
     bindingLayout.buffer.minBindingSize      = sizeof(MyUniforms);
 
