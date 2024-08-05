@@ -33,6 +33,7 @@ static_assert(sizeof(MyUniforms) % 16 == 0);
 
 wgpu::ShaderModule loadShaderModule(const fs::path& path, wgpu::Device device);
 bool loadGeometry(const fs::path& path, std::vector<float>& pointData, std::vector<uint16_t>& indexData);
+uint32_t ceilToNextMultiple(uint32_t value, uint32_t step);
 
 struct Application::AppData
 {
@@ -56,6 +57,7 @@ public:
     wgpu::BindGroup bindGroup;
 
     MyUniforms uniforms;
+    uint32_t uniformStride;
 };
 
 Application::Application()
@@ -213,11 +215,16 @@ void Application::MainLoop()
     renderPass.setVertexBuffer(0, data->pointBuffer, 0, data->pointBuffer.getSize());
     renderPass.setIndexBuffer(data->indexBuffer, wgpu::IndexFormat::Uint16, 0, data->indexBuffer.getSize());
 
-    // Set binding group
-    renderPass.setBindGroup(0, data->bindGroup, 0, nullptr);
+    uint32_t dynamicOffset = 0;
 
-    // Replace `draw()` with `drawIndexed()` and `vertexCount` with `indexCount`
-    // The extra argument is an offset within the index buffer.
+    // Set binding group
+    dynamicOffset = 0 * data->uniformStride;
+    renderPass.setBindGroup(0, data->bindGroup, 1, &dynamicOffset);
+    renderPass.drawIndexed(data->indexCount, 1, 0, 0, 0);
+
+    // Set binding group with a different uniform offset
+    dynamicOffset = 1 * data->uniformStride;
+    renderPass.setBindGroup(0, data->bindGroup, 1, &dynamicOffset);
     renderPass.drawIndexed(data->indexCount, 1, 0, 0, 0);
 
     renderPass.end();
@@ -423,9 +430,9 @@ void Application::InitializeBuffers()
     wgpu::SupportedLimits supportedLimits;
     data->device.getLimits(&supportedLimits);
     wgpu::Limits deviceLimits = supportedLimits.limits;
-    uint32_t uniformStride =
+    data->uniformStride =
         ceilToNextMultiple((uint32_t)sizeof(MyUniforms), (uint32_t)deviceLimits.minUniformBufferOffsetAlignment);
-    bufferDesc.size             = uniformStride + sizeof(MyUniforms);
+    bufferDesc.size             = data->uniformStride + sizeof(MyUniforms);
     bufferDesc.usage            = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Uniform;
     bufferDesc.mappedAtCreation = false;
     data->uniformBuffer         = data->device.createBuffer(bufferDesc);
@@ -443,7 +450,7 @@ void Application::InitializeBuffers()
     uniforms.time  = 1.0f;
     uniforms.color = {1.0f, 1.0f, 1.0f, 0.7f};
     data->uniforms = uniforms;
-    data->queue.writeBuffer(data->uniformBuffer, uniformStride, &data->uniforms, sizeof(MyUniforms));
+    data->queue.writeBuffer(data->uniformBuffer, data->uniformStride, &data->uniforms, sizeof(MyUniforms));
 
     // Create a binding
     wgpu::BindGroupEntry binding;
@@ -495,7 +502,7 @@ wgpu::RequiredLimits Application::GetRequiredLimits(wgpu::Adapter adapter) const
     return requiredLimits;
 }
 
-uint32_t Application::ceilToNextMultiple(uint32_t value, uint32_t step)
+uint32_t ceilToNextMultiple(uint32_t value, uint32_t step)
 {
     uint32_t devideAndCeil = value / step + (value % step == 0 ? 0 : 1);
     return step * devideAndCeil;

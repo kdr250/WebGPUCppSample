@@ -37,6 +37,4 @@ private:
     void InitializeBuffers();
 
     wgpu::RequiredLimits GetRequiredLimits(wgpu::Adapter adapter) const;
-
-    uint32_t ceilToNextMultiple(uint32_t value, uint32_t step);
 };
