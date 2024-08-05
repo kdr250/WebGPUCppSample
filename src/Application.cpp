@@ -469,6 +469,8 @@ wgpu::RequiredLimits Application::GetRequiredLimits(wgpu::Adapter adapter) const
     requiredLimits.limits.maxUniformBuffersPerShaderStage = 1;
     // Uniform structs have a size of maximum 16 float (more than what we need)
     requiredLimits.limits.maxUniformBufferBindingSize = 16 * 4;
+    // Extra limit requirement
+    requiredLimits.limits.maxDynamicUniformBuffersPerPipelineLayout = 1;
 
     // These two limits are different because they are "minimum" limits,
     // they are the only ones we are may forward from the adapter's supported
