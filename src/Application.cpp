@@ -343,8 +343,8 @@ void Application::InitializePipeline()
     wgpu::BindGroupLayoutDescriptor bindGroupLayoutDesc;
     bindGroupLayoutDesc.entryCount = 1;
     bindGroupLayoutDesc.entries    = &bindingLayout;
-    data->bindGroupLayout          = data->device.createBindGroupLayout(bindGroupLayoutDesc);
     data->bindGroupLayoutDesc      = bindGroupLayoutDesc;
+    data->bindGroupLayout          = data->device.createBindGroupLayout(data->bindGroupLayoutDesc);
 
     // Create the pipeline layout
     wgpu::PipelineLayoutDescriptor layoutDesc;
@@ -355,6 +355,7 @@ void Application::InitializePipeline()
     pipelineDesc.layout = layout;
 
     data->pipeline = data->device.createRenderPipeline(pipelineDesc);
+    std::cout << "Render pipeline: " << data->pipeline << std::endl;
 
     shaderModule.release();
 }
