@@ -36,10 +36,14 @@ public:
     wgpu::Surface surface;
     wgpu::Buffer pointBuffer;
     wgpu::Buffer indexBuffer;
+    wgpu::Buffer uniformBuffer;
     uint32_t indexCount;
     std::unique_ptr<wgpu::ErrorCallback> uncapturedErrorCallbackHandle;
     wgpu::TextureFormat surfaceFormat = wgpu::TextureFormat::Undefined;
     wgpu::RenderPipeline pipeline;
+    wgpu::BindGroupLayout bindGroupLayout;
+    wgpu::BindGroupLayoutDescriptor bindGroupLayoutDesc;
+    wgpu::BindGroup bindGroup;
 };
 
 Application::Application()
@@ -153,6 +157,10 @@ void Application::MainLoop()
 {
     glfwPollEvents();
 
+    // Update uniform buffer
+    float t = static_cast<float>(glfwGetTime());
+    data->queue.writeBuffer(data->uniformBuffer, 0, &t, sizeof(float));
+
     // Get the next target texture view
     wgpu::TextureView targetView = GetNextSurfaceTextureView();
     if (!targetView)
@@ -189,6 +197,9 @@ void Application::MainLoop()
     // Set both vertex and index buffers
     renderPass.setVertexBuffer(0, data->pointBuffer, 0, data->pointBuffer.getSize());
     renderPass.setIndexBuffer(data->indexBuffer, wgpu::IndexFormat::Uint16, 0, data->indexBuffer.getSize());
+
+    // Set binding group
+    renderPass.setBindGroup(0, data->bindGroup, 0, nullptr);
 
     // Replace `draw()` with `drawIndexed()` and `vertexCount` with `indexCount`
     // The extra argument is an offset within the index buffer.
@@ -320,9 +331,31 @@ void Application::InitializePipeline()
     pipelineDesc.multisample.count                  = 1;
     pipelineDesc.multisample.mask                   = ~0u;
     pipelineDesc.multisample.alphaToCoverageEnabled = false;
-    pipelineDesc.layout                             = nullptr;
+
+    // Create binding layout
+    wgpu::BindGroupLayoutEntry bindingLayout = wgpu::Default;
+    bindingLayout.binding                    = 0;
+    bindingLayout.visibility                 = wgpu::ShaderStage::Vertex;
+    bindingLayout.buffer.type                = wgpu::BufferBindingType::Uniform;
+    bindingLayout.buffer.minBindingSize      = sizeof(float);
+
+    // Create a bind group layout
+    wgpu::BindGroupLayoutDescriptor bindGroupLayoutDesc;
+    bindGroupLayoutDesc.entryCount = 1;
+    bindGroupLayoutDesc.entries    = &bindingLayout;
+    data->bindGroupLayoutDesc      = bindGroupLayoutDesc;
+    data->bindGroupLayout          = data->device.createBindGroupLayout(data->bindGroupLayoutDesc);
+
+    // Create the pipeline layout
+    wgpu::PipelineLayoutDescriptor layoutDesc;
+    layoutDesc.bindGroupLayoutCount = 1;
+    layoutDesc.bindGroupLayouts     = (WGPUBindGroupLayout*)&data->bindGroupLayout;
+    wgpu::PipelineLayout layout     = data->device.createPipelineLayout(layoutDesc);
+
+    pipelineDesc.layout = layout;
 
     data->pipeline = data->device.createRenderPipeline(pipelineDesc);
+    std::cout << "Render pipeline: " << data->pipeline << std::endl;
 
     shaderModule.release();
 }
@@ -369,6 +402,29 @@ void Application::InitializeBuffers()
     data->indexBuffer = data->device.createBuffer(bufferDesc);
 
     data->queue.writeBuffer(data->indexBuffer, 0, indexData.data(), bufferDesc.size);
+
+    // Create uniform buffer. The buffer will only contain 1 float with the value of uTime
+    bufferDesc.size             = sizeof(float);
+    bufferDesc.usage            = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Uniform;
+    bufferDesc.mappedAtCreation = false;
+    data->uniformBuffer         = data->device.createBuffer(bufferDesc);
+
+    float currentTime = 1.0f;
+    data->queue.writeBuffer(data->uniformBuffer, 0, &currentTime, sizeof(float));
+
+    // Create a binding
+    wgpu::BindGroupEntry binding;
+    binding.binding = 0;
+    binding.buffer  = data->uniformBuffer;
+    binding.offset  = 0;
+    binding.size    = sizeof(float);
+
+    // A bind group contains one or multiple bindings
+    wgpu::BindGroupDescriptor bindGroupDesc;
+    bindGroupDesc.layout     = data->bindGroupLayout;
+    bindGroupDesc.entryCount = data->bindGroupLayoutDesc.entryCount;
+    bindGroupDesc.entries    = &binding;
+    data->bindGroup          = data->device.createBindGroup(bindGroupDesc);
 }
 
 wgpu::RequiredLimits Application::GetRequiredLimits(wgpu::Adapter adapter) const
@@ -388,6 +444,12 @@ wgpu::RequiredLimits Application::GetRequiredLimits(wgpu::Adapter adapter) const
     requiredLimits.limits.maxVertexBufferArrayStride = 5 * sizeof(float);
     // There is a maximum of 3 float forwarded from vertex to fragment shader
     requiredLimits.limits.maxInterStageShaderComponents = 3;
+    // We use at most 1 bind group for now
+    requiredLimits.limits.maxBindGroups = 1;
+    // We use at most 1 uniform buffer per stage
+    requiredLimits.limits.maxUniformBuffersPerShaderStage = 1;
+    // Uniform structs have a size of maximum 16 float (more than what we need)
+    requiredLimits.limits.maxUniformBufferBindingSize = 16 * 4;
 
     // These two limits are different because they are "minimum" limits,
     // they are the only ones we are may forward from the adapter's supported
