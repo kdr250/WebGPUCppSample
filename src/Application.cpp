@@ -36,6 +36,7 @@ public:
     wgpu::Surface surface;
     wgpu::Buffer pointBuffer;
     wgpu::Buffer indexBuffer;
+    wgpu::Buffer uniformBuffer;
     uint32_t indexCount;
     std::unique_ptr<wgpu::ErrorCallback> uncapturedErrorCallbackHandle;
     wgpu::TextureFormat surfaceFormat = wgpu::TextureFormat::Undefined;
@@ -369,6 +370,15 @@ void Application::InitializeBuffers()
     data->indexBuffer = data->device.createBuffer(bufferDesc);
 
     data->queue.writeBuffer(data->indexBuffer, 0, indexData.data(), bufferDesc.size);
+
+    // Create uniform buffer. The buffer will only contain 1 float with the value of uTime
+    bufferDesc.size             = sizeof(float);
+    bufferDesc.usage            = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Uniform;
+    bufferDesc.mappedAtCreation = false;
+    data->uniformBuffer         = data->device.createBuffer(bufferDesc);
+
+    float currentTime = 1.0f;
+    data->queue.writeBuffer(data->uniformBuffer, 0, &currentTime, sizeof(float));
 }
 
 wgpu::RequiredLimits Application::GetRequiredLimits(wgpu::Adapter adapter) const
