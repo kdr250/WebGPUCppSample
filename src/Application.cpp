@@ -321,7 +321,27 @@ void Application::InitializePipeline()
     pipelineDesc.multisample.count                  = 1;
     pipelineDesc.multisample.mask                   = ~0u;
     pipelineDesc.multisample.alphaToCoverageEnabled = false;
-    pipelineDesc.layout                             = nullptr;
+
+    // Create binding layout
+    wgpu::BindGroupLayoutEntry bindingLayout = wgpu::Default;
+    bindingLayout.binding                    = 0;
+    bindingLayout.visibility                 = wgpu::ShaderStage::Vertex;
+    bindingLayout.buffer.type                = wgpu::BufferBindingType::Uniform;
+    bindingLayout.buffer.minBindingSize      = sizeof(float);
+
+    // Create a bind group layout
+    wgpu::BindGroupLayoutDescriptor bindGroupLayoutDesc;
+    bindGroupLayoutDesc.entryCount        = 1;
+    bindGroupLayoutDesc.entries           = &bindingLayout;
+    wgpu::BindGroupLayout bindGroupLayout = data->device.createBindGroupLayout(bindGroupLayoutDesc);
+
+    // Create the pipeline layout
+    wgpu::PipelineLayoutDescriptor layoutDesc;
+    layoutDesc.bindGroupLayoutCount = 1;
+    layoutDesc.bindGroupLayouts     = (WGPUBindGroupLayout*)&bindGroupLayout;
+    wgpu::PipelineLayout layout     = data->device.createPipelineLayout(layoutDesc);
+
+    pipelineDesc.layout = layout;
 
     data->pipeline = data->device.createRenderPipeline(pipelineDesc);
 
