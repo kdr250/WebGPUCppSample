@@ -11,6 +11,7 @@
     #include <emscripten.h>
 #endif  // __EMSCRIPTEN__
 
+#include <array>
 #include <cassert>
 #include <filesystem>
 #include <fstream>
@@ -20,6 +21,12 @@
 #include <vector>
 
 namespace fs = std::filesystem;
+
+struct MyUniforms
+{
+    float time;
+    std::array<float, 4> color;
+};
 
 wgpu::ShaderModule loadShaderModule(const fs::path& path, wgpu::Device device);
 bool loadGeometry(const fs::path& path, std::vector<float>& pointData, std::vector<uint16_t>& indexData);
@@ -44,6 +51,8 @@ public:
     wgpu::BindGroupLayout bindGroupLayout;
     wgpu::BindGroupLayoutDescriptor bindGroupLayoutDesc;
     wgpu::BindGroup bindGroup;
+
+    MyUniforms uniforms;
 };
 
 Application::Application()
@@ -158,8 +167,11 @@ void Application::MainLoop()
     glfwPollEvents();
 
     // Update uniform buffer
-    float t = static_cast<float>(glfwGetTime());
-    data->queue.writeBuffer(data->uniformBuffer, 0, &t, sizeof(float));
+    data->uniforms.time = static_cast<float>(glfwGetTime());
+    data->queue.writeBuffer(data->uniformBuffer,
+                            offsetof(MyUniforms, time),
+                            &data->uniforms.time,
+                            sizeof(MyUniforms::time));
 
     // Get the next target texture view
     wgpu::TextureView targetView = GetNextSurfaceTextureView();
@@ -337,7 +349,7 @@ void Application::InitializePipeline()
     bindingLayout.binding                    = 0;
     bindingLayout.visibility                 = wgpu::ShaderStage::Vertex;
     bindingLayout.buffer.type                = wgpu::BufferBindingType::Uniform;
-    bindingLayout.buffer.minBindingSize      = sizeof(float);
+    bindingLayout.buffer.minBindingSize      = sizeof(MyUniforms);
 
     // Create a bind group layout
     wgpu::BindGroupLayoutDescriptor bindGroupLayoutDesc;
@@ -404,20 +416,24 @@ void Application::InitializeBuffers()
     data->queue.writeBuffer(data->indexBuffer, 0, indexData.data(), bufferDesc.size);
 
     // Create uniform buffer. The buffer will only contain 1 float with the value of uTime
-    bufferDesc.size             = sizeof(float);
+    bufferDesc.size             = sizeof(MyUniforms);
     bufferDesc.usage            = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Uniform;
     bufferDesc.mappedAtCreation = false;
     data->uniformBuffer         = data->device.createBuffer(bufferDesc);
 
-    float currentTime = 1.0f;
-    data->queue.writeBuffer(data->uniformBuffer, 0, &currentTime, sizeof(float));
+    // Upload the initial value of the uniforms
+    MyUniforms uniforms;
+    uniforms.time  = 1.0f;
+    uniforms.color = {0.0f, 1.0f, 0.4f, 1.0f};
+    data->uniforms = uniforms;
+    data->queue.writeBuffer(data->uniformBuffer, 0, &data->uniforms, sizeof(MyUniforms));
 
     // Create a binding
     wgpu::BindGroupEntry binding;
     binding.binding = 0;
     binding.buffer  = data->uniformBuffer;
     binding.offset  = 0;
-    binding.size    = sizeof(float);
+    binding.size    = sizeof(MyUniforms);
 
     // A bind group contains one or multiple bindings
     wgpu::BindGroupDescriptor bindGroupDesc;
