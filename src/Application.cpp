@@ -41,6 +41,9 @@ public:
     std::unique_ptr<wgpu::ErrorCallback> uncapturedErrorCallbackHandle;
     wgpu::TextureFormat surfaceFormat = wgpu::TextureFormat::Undefined;
     wgpu::RenderPipeline pipeline;
+    wgpu::BindGroupLayout bindGroupLayout;
+    wgpu::BindGroupLayoutDescriptor bindGroupLayoutDesc;
+    wgpu::BindGroup bindGroup;
 };
 
 Application::Application()
@@ -154,6 +157,10 @@ void Application::MainLoop()
 {
     glfwPollEvents();
 
+    // Update uniform buffer
+    float t = static_cast<float>(glfwGetTime());
+    data->queue.writeBuffer(data->uniformBuffer, 0, &t, sizeof(float));
+
     // Get the next target texture view
     wgpu::TextureView targetView = GetNextSurfaceTextureView();
     if (!targetView)
@@ -190,6 +197,9 @@ void Application::MainLoop()
     // Set both vertex and index buffers
     renderPass.setVertexBuffer(0, data->pointBuffer, 0, data->pointBuffer.getSize());
     renderPass.setIndexBuffer(data->indexBuffer, wgpu::IndexFormat::Uint16, 0, data->indexBuffer.getSize());
+
+    // Set binding group
+    renderPass.setBindGroup(0, data->bindGroup, 0, nullptr);
 
     // Replace `draw()` with `drawIndexed()` and `vertexCount` with `indexCount`
     // The extra argument is an offset within the index buffer.
@@ -331,14 +341,15 @@ void Application::InitializePipeline()
 
     // Create a bind group layout
     wgpu::BindGroupLayoutDescriptor bindGroupLayoutDesc;
-    bindGroupLayoutDesc.entryCount        = 1;
-    bindGroupLayoutDesc.entries           = &bindingLayout;
-    wgpu::BindGroupLayout bindGroupLayout = data->device.createBindGroupLayout(bindGroupLayoutDesc);
+    bindGroupLayoutDesc.entryCount = 1;
+    bindGroupLayoutDesc.entries    = &bindingLayout;
+    data->bindGroupLayout          = data->device.createBindGroupLayout(bindGroupLayoutDesc);
+    data->bindGroupLayoutDesc      = bindGroupLayoutDesc;
 
     // Create the pipeline layout
     wgpu::PipelineLayoutDescriptor layoutDesc;
     layoutDesc.bindGroupLayoutCount = 1;
-    layoutDesc.bindGroupLayouts     = (WGPUBindGroupLayout*)&bindGroupLayout;
+    layoutDesc.bindGroupLayouts     = (WGPUBindGroupLayout*)&data->bindGroupLayout;
     wgpu::PipelineLayout layout     = data->device.createPipelineLayout(layoutDesc);
 
     pipelineDesc.layout = layout;
@@ -399,6 +410,20 @@ void Application::InitializeBuffers()
 
     float currentTime = 1.0f;
     data->queue.writeBuffer(data->uniformBuffer, 0, &currentTime, sizeof(float));
+
+    // Create a binding
+    wgpu::BindGroupEntry binding;
+    binding.binding = 0;
+    binding.buffer  = data->uniformBuffer;
+    binding.offset  = 0;
+    binding.size    = sizeof(float);
+
+    // A bind group contains one or multiple bindings
+    wgpu::BindGroupDescriptor bindGroupDesc;
+    bindGroupDesc.layout     = data->bindGroupLayout;
+    bindGroupDesc.entryCount = data->bindGroupLayoutDesc.entryCount;
+    bindGroupDesc.entries    = &binding;
+    data->bindGroup          = data->device.createBindGroup(bindGroupDesc);
 }
 
 wgpu::RequiredLimits Application::GetRequiredLimits(wgpu::Adapter adapter) const

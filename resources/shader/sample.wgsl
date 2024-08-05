@@ -3,7 +3,7 @@
  * The memory location of the uniform is given by a pair of a *bind group* and
  * a *binding*.
  */
-@group(0) @binding(0) var<uniform> uTime; f32;
+@group(0) @binding(0) var<uniform> uTime: f32;
 
 
 /**
