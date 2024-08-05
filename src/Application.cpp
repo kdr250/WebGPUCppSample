@@ -420,17 +420,30 @@ void Application::InitializeBuffers()
     data->queue.writeBuffer(data->indexBuffer, 0, indexData.data(), bufferDesc.size);
 
     // Create uniform buffer. The buffer will only contain 1 float with the value of uTime
-    bufferDesc.size             = sizeof(MyUniforms);
+    wgpu::SupportedLimits supportedLimits;
+    data->device.getLimits(&supportedLimits);
+    wgpu::Limits deviceLimits = supportedLimits.limits;
+    uint32_t uniformStride =
+        ceilToNextMultiple((uint32_t)sizeof(MyUniforms), (uint32_t)deviceLimits.minUniformBufferOffsetAlignment);
+    bufferDesc.size             = uniformStride + sizeof(MyUniforms);
     bufferDesc.usage            = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Uniform;
     bufferDesc.mappedAtCreation = false;
     data->uniformBuffer         = data->device.createBuffer(bufferDesc);
 
     // Upload the initial value of the uniforms
     MyUniforms uniforms;
+
+    // Upload first value
     uniforms.time  = 1.0f;
     uniforms.color = {0.0f, 1.0f, 0.4f, 1.0f};
     data->uniforms = uniforms;
     data->queue.writeBuffer(data->uniformBuffer, 0, &data->uniforms, sizeof(MyUniforms));
+
+    // Upload second value
+    uniforms.time  = 1.0f;
+    uniforms.color = {1.0f, 1.0f, 1.0f, 0.7f};
+    data->uniforms = uniforms;
+    data->queue.writeBuffer(data->uniformBuffer, uniformStride, &data->uniforms, sizeof(MyUniforms));
 
     // Create a binding
     wgpu::BindGroupEntry binding;
@@ -480,6 +493,12 @@ wgpu::RequiredLimits Application::GetRequiredLimits(wgpu::Adapter adapter) const
     requiredLimits.limits.minUniformBufferOffsetAlignment = supportedLimits.limits.minUniformBufferOffsetAlignment;
 
     return requiredLimits;
+}
+
+uint32_t Application::ceilToNextMultiple(uint32_t value, uint32_t step)
+{
+    uint32_t devideAndCeil = value / step + (value % step == 0 ? 0 : 1);
+    return step * devideAndCeil;
 }
 
 wgpu::ShaderModule loadShaderModule(const fs::path& path, wgpu::Device device)
