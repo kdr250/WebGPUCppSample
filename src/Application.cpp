@@ -5,6 +5,7 @@
 
 #include <GLFW/glfw3.h>
 #include <glfw3webgpu.h>
+#include <magic_enum.hpp>
 
 #ifdef __EMSCRIPTEN__
     #include <emscripten.h>
@@ -105,11 +106,16 @@ bool Application::Initialize()
     wgpu::SurfaceConfiguration config = {};
 
     // Configuration of the textures created for the underlying swap chain
-    config.width        = 640;
-    config.height       = 480;
-    config.usage        = wgpu::TextureUsage::RenderAttachment;
-    data->surfaceFormat = data->surface.getPreferredFormat(adapter);
-    config.format       = data->surfaceFormat;
+    config.width  = 640;
+    config.height = 480;
+    config.usage  = wgpu::TextureUsage::RenderAttachment;
+#ifdef WEBGPU_BACKEND_WGPU
+    data->surfaceFormat = surface.getPreferredFormat(adapter);
+#else
+    data->surfaceFormat = wgpu::TextureFormat::BGRA8Unorm;
+#endif
+    config.format = data->surfaceFormat;
+    std::cout << "Swapchain format: " << magic_enum::enum_name<WGPUTextureFormat>(data->surfaceFormat) << std::endl;
 
     // And we do not need any particular view format:
     config.viewFormatCount = 0;
