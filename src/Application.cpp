@@ -388,6 +388,12 @@ wgpu::RequiredLimits Application::GetRequiredLimits(wgpu::Adapter adapter) const
     requiredLimits.limits.maxVertexBufferArrayStride = 5 * sizeof(float);
     // There is a maximum of 3 float forwarded from vertex to fragment shader
     requiredLimits.limits.maxInterStageShaderComponents = 3;
+    // We use at most 1 bind group for now
+    requiredLimits.limits.maxBindGroups = 1;
+    // We use at most 1 uniform buffer per stage
+    requiredLimits.limits.maxUniformBuffersPerShaderStage = 1;
+    // Uniform structs have a size of maximum 16 float (more than what we need)
+    requiredLimits.limits.maxUniformBufferBindingSize = 16 * 4;
 
     // These two limits are different because they are "minimum" limits,
     // they are the only ones we are may forward from the adapter's supported
