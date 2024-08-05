@@ -26,7 +26,10 @@ struct MyUniforms
 {
     std::array<float, 4> color;
     float time;
+    float _pat[3];
 };
+
+static_assert(sizeof(MyUniforms) % 16 == 0);
 
 wgpu::ShaderModule loadShaderModule(const fs::path& path, wgpu::Device device);
 bool loadGeometry(const fs::path& path, std::vector<float>& pointData, std::vector<uint16_t>& indexData);
