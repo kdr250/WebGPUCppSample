@@ -33,6 +33,7 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(glfw-light webgpu glfw3webgpu)
 
 find_package(magic_enum CONFIG REQUIRED)
+find_package(glm CONFIG REQUIRED)
 
 add_compile_options("$<$<C_COMPILER_ID:MSVC>:/utf-8>")
 add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
@@ -51,6 +52,7 @@ target_link_libraries(
     webgpu
     glfw3webgpu
     magic_enum::magic_enum
+    glm::glm
 )
 
 set_target_properties(

@@ -24,6 +24,9 @@ struct VertexOutput
  */
 struct MyUniforms
 {
+	projectionMatrix: mat4x4f,
+	viewMatrix: mat4x4f,
+	modelMatrix: mat4x4f,
     color: vec4f,
     time: f32,
 };
@@ -53,10 +56,12 @@ fn makePerspectiveProj(ratio: f32, near: f32, far: f32, focalLength: f32) -> mat
 	));
 }
 
-@vertex
-fn vs_main(in: VertexInput) -> VertexOutput
-{
-    var out: VertexOutput;
+/**
+ * Option A: Rebuild the matrices for each vertex
+ * (not recommended)
+ */
+fn vs_main_optionA(in: VertexInput) -> VertexOutput {
+	var out: VertexOutput;
     let ratio = 640.0 / 480.0;
 
     // Scale the object
@@ -122,6 +127,24 @@ fn vs_main(in: VertexInput) -> VertexOutput
 
     out.color = in.color;
     return out;
+}
+
+/**
+ * Option B: Use matrices that have been precomputed and stored in the uniform buffer
+ * (recommended)
+ */
+fn vs_main_optionB(in: VertexInput) -> VertexOutput {
+	var out: VertexOutput;
+	out.position = uMyUniforms.projectionMatrix * uMyUniforms.viewMatrix * uMyUniforms.modelMatrix * vec4f(in.position, 1.0);
+	out.color = in.color;
+	return out;
+}
+
+@vertex
+fn vs_main(in: VertexInput) -> VertexOutput
+{
+    // return vs_main_optionA(in);
+	return vs_main_optionB(in);
 }
 
 @fragment
