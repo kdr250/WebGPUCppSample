@@ -10,6 +10,8 @@
 #include <glm/ext.hpp>
 #include <glm/glm.hpp>
 #include <magic_enum.hpp>
+#define TINYOBJLOADER_IMPLEMENTATION
+#include <tiny_obj_loader.h>
 
 #ifdef __EMSCRIPTEN__
     #include <emscripten.h>
@@ -52,11 +54,7 @@ struct MyUniforms
 static_assert(sizeof(MyUniforms) % 16 == 0);
 
 wgpu::ShaderModule loadShaderModule(const fs::path& path, wgpu::Device device);
-bool loadGeometry(const fs::path& path,
-                  std::vector<float>& pointData,
-                  std::vector<uint16_t>& indexData,
-                  int dimensions);
-MyUniforms createUniforms();
+bool loadGeometryFromObj(const fs::path& path, std::vector<VertexAttributes>& vertexData);
 
 struct Application::AppData
 {
@@ -188,8 +186,6 @@ void Application::Terminate()
     data->depthTexture.release();
     data->pointBuffer.destroy();
     data->pointBuffer.release();
-    data->indexBuffer.destroy();
-    data->indexBuffer.release();
     data->pipeline.release();
     data->surface.unconfigure();
     data->queue.release();
@@ -271,11 +267,10 @@ void Application::MainLoop()
 
     // Set both vertex and index buffers
     renderPass.setVertexBuffer(0, data->pointBuffer, 0, data->pointBuffer.getSize());
-    renderPass.setIndexBuffer(data->indexBuffer, wgpu::IndexFormat::Uint16, 0, data->indexBuffer.getSize());
 
     // Set binding group
     renderPass.setBindGroup(0, data->bindGroup, 0, nullptr);
-    renderPass.drawIndexed(data->indexCount, 1, 0, 0, 0);
+    renderPass.draw(data->indexCount, 1, 0, 0);
 
     renderPass.end();
     renderPass.release();
@@ -483,31 +478,22 @@ void wgpuPollEvent([[maybe_unused]] wgpu::Device device, [[maybe_unused]] bool y
 
 void Application::InitializeBuffers()
 {
-    std::vector<float> pointData;
-    std::vector<uint16_t> indexData;
+    std::vector<VertexAttributes> vertexData;
 
-    bool success = loadGeometry("resources/shader/pyramid.txt", pointData, indexData, 6);
+    bool success = loadGeometryFromObj("resources/shader/pyramid.obj", vertexData);
     assert(success && "Could not load geometry!");
 
     // we will declare indexCount as a member of the Application class
-    data->indexCount = static_cast<uint32_t>(indexData.size());
+    data->indexCount = static_cast<uint32_t>(vertexData.size());
 
-    // Create point buffer
+    // Create vertex buffer
     wgpu::BufferDescriptor bufferDesc;
-    bufferDesc.size             = pointData.size() * sizeof(float);
+    bufferDesc.size             = vertexData.size() * sizeof(VertexAttributes);
     bufferDesc.usage            = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Vertex;
     bufferDesc.mappedAtCreation = false;
     data->pointBuffer           = data->device.createBuffer(bufferDesc);
 
-    data->queue.writeBuffer(data->pointBuffer, 0, pointData.data(), bufferDesc.size);
-
-    // Create index buffer
-    bufferDesc.size   = indexData.size() * sizeof(uint16_t);
-    bufferDesc.size   = (bufferDesc.size + 3) & ~3;  // round up to the next multiple of 4
-    bufferDesc.usage  = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Index;
-    data->indexBuffer = data->device.createBuffer(bufferDesc);
-
-    data->queue.writeBuffer(data->indexBuffer, 0, indexData.data(), bufferDesc.size);
+    data->queue.writeBuffer(data->pointBuffer, 0, vertexData.data(), bufferDesc.size);
 
     // Create uniform buffer.
     bufferDesc.size             = sizeof(MyUniforms);
@@ -546,7 +532,7 @@ wgpu::RequiredLimits Application::GetRequiredLimits(wgpu::Adapter adapter) const
     // We should also tell that we use 1 vertex buffers
     requiredLimits.limits.maxVertexBuffers = 1;
     // Maximum size of a buffer is 6 vertices of 2 float each
-    requiredLimits.limits.maxBufferSize = 16 * sizeof(VertexAttributes);
+    requiredLimits.limits.maxBufferSize = 10000 * sizeof(VertexAttributes);
     // Maximum stride between 2 consecutive vertices in the vertex buffer
     requiredLimits.limits.maxVertexBufferArrayStride = sizeof(VertexAttributes);
     // There is a maximum of 3 float forwarded from vertex to fragment shader
@@ -598,64 +584,59 @@ wgpu::ShaderModule loadShaderModule(const fs::path& path, wgpu::Device device)
     return device.createShaderModule(shaderDesc);
 }
 
-bool loadGeometry(const fs::path& path, std::vector<float>& pointData, std::vector<uint16_t>& indexData, int dimensions)
+bool loadGeometryFromObj(const fs::path& path, std::vector<VertexAttributes>& vertexData)
 {
-    std::ifstream file(path);
-    if (!file.is_open())
+    tinyobj::attrib_t attrib;
+    std::vector<tinyobj::shape_t> shapes;
+    std::vector<tinyobj::material_t> materials;
+
+    std::string warn;
+    std::string err;
+
+    bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, path.string().c_str());
+
+    if (!warn.empty())
+    {
+        std::cout << warn << std::endl;
+    }
+
+    if (!err.empty())
+    {
+        std::cerr << err << std::endl;
+    }
+
+    if (!ret)
     {
         return false;
     }
 
-    pointData.clear();
-    indexData.clear();
-
-    enum class Section
+    // Filling in vertexData:
+    vertexData.clear();
+    for (const auto& shape : shapes)
     {
-        None,
-        Points,
-        Indices,
-    };
-    Section currentSection = Section::None;
+        size_t offset = vertexData.size();
+        vertexData.resize(offset + shape.mesh.indices.size());
 
-    float value;
-    uint16_t index;
-    std::string line;
-    while (!file.eof())
-    {
-        getline(file, line);
-        if (line == "[points]")
+        for (size_t i = 0; i < shape.mesh.indices.size(); ++i)
         {
-            currentSection = Section::Points;
-        }
-        else if (line == "[indices]")
-        {
-            currentSection = Section::Indices;
-        }
-        else if (line[0] == '#' || line.empty())
-        {
-            // Do nothing, this is a comment
-        }
-        else if (currentSection == Section::Points)
-        {
-            std::istringstream iss(line);
-            // Get x, y, r, g, b
-            for (int i = 0; i < dimensions + 3; ++i)
-            {
-                iss >> value;
-                pointData.emplace_back(value);
-            }
-        }
-        else if (currentSection == Section::Indices)
-        {
-            std::istringstream iss(line);
-            // Get corner #0 #1 and #2
-            for (int i = 0; i < 3; ++i)
-            {
-                iss >> index;
-                indexData.emplace_back(index);
-            }
+            const tinyobj::index_t& idx = shape.mesh.indices[i];
+
+            vertexData[offset + i].position = {
+                attrib.vertices[3 * idx.vertex_index + 0],
+                -attrib.vertices[3 * idx.vertex_index + 2],  // Add a minus to avoid mirroring
+                attrib.vertices[3 * idx.vertex_index + 1]};
+
+            // Also apply the transform to normals!!
+            vertexData[offset + i].normal = {attrib.normals[3 * idx.normal_index + 0],
+                                             -attrib.normals[3 * idx.normal_index + 2],
+                                             attrib.normals[3 * idx.normal_index + 1]};
+
+            vertexData[offset + i].color = {attrib.colors[3 * idx.vertex_index + 0],
+                                            attrib.colors[3 * idx.vertex_index + 1],
+                                            attrib.colors[3 * idx.vertex_index + 2]};
         }
     }
+
     return true;
 }
 
@@ -664,7 +645,7 @@ MyUniforms Application::createUniforms()
     MyUniforms uniforms;
 
     // Translate the view
-    glm::vec3 focalPoint(0.0, 0.0, -2.0);
+    glm::vec3 focalPoint(0.0, 0.0, -1.0);
     glm::mat4x4 T2 = glm::transpose(glm::mat4x4(1.0,
                                                 0.0,
                                                 0.0,
@@ -689,8 +670,7 @@ MyUniforms Application::createUniforms()
         glm::transpose(glm::mat4x4(0.3, 0.0, 0.0, 0.0, 0.0, 0.3, 0.0, 0.0, 0.0, 0.0, 0.3, 0.0, 0.0, 0.0, 0.0, 1.0));
 
     // Translate the object
-    glm::mat4x4 T1 =
-        glm::transpose(glm::mat4x4(1.0, 0.0, 0.0, 0.5, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0));
+    glm::mat4x4 T1 = glm::mat4x4(1.0);
 
     // Rotate the object
     float angle1 = 2.0f;  // arbitrary time
