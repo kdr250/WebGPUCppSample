@@ -37,4 +37,6 @@ private:
     void InitializeBuffers();
 
     wgpu::RequiredLimits GetRequiredLimits(wgpu::Adapter adapter) const;
+
+    struct MyUniforms createUniforms();
 };

@@ -24,6 +24,9 @@ struct VertexOutput
  */
 struct MyUniforms
 {
+	projectionMatrix: mat4x4f,
+	viewMatrix: mat4x4f,
+	modelMatrix: mat4x4f,
     color: vec4f,
     time: f32,
 };
@@ -32,10 +35,33 @@ struct MyUniforms
 
 const pi = 3.14159265359;
 
-@vertex
-fn vs_main(in: VertexInput) -> VertexOutput
-{
-    var out: VertexOutput;
+// Build an orthographic projection matrix
+fn makeOrthographicProj(ratio: f32, near: f32, far: f32, scale: f32) -> mat4x4f {
+	return transpose(mat4x4f(
+		1.0 / scale,      0.0,           0.0,                  0.0,
+		    0.0,     ratio / scale,      0.0,                  0.0,
+		    0.0,          0.0,      1.0 / (far - near), -near / (far - near),
+		    0.0,          0.0,           0.0,                  1.0,
+	));
+}
+
+// Build a perspective projection matrix
+fn makePerspectiveProj(ratio: f32, near: f32, far: f32, focalLength: f32) -> mat4x4f {
+	let divides = 1.0 / (far - near);
+	return transpose(mat4x4f(
+		focalLength,         0.0,              0.0,               0.0,
+		    0.0,     focalLength * ratio,      0.0,               0.0,
+		    0.0,             0.0,         far * divides, -far * near * divides,
+		    0.0,             0.0,              1.0,               0.0,
+	));
+}
+
+/**
+ * Option A: Rebuild the matrices for each vertex
+ * (not recommended)
+ */
+fn vs_main_optionA(in: VertexInput) -> VertexOutput {
+	var out: VertexOutput;
     let ratio = 640.0 / 480.0;
 
     // Scale the object
@@ -77,15 +103,48 @@ fn vs_main(in: VertexInput) -> VertexOutput
 		0.0,  0.0, 0.0, 1.0,
 	));
 
+	// Move the view point
+	let focalPoint = vec3f(0.0, 0.0, -2.0);
+	let T2 = transpose(mat4x4f(
+		1.0,  0.0, 0.0, -focalPoint.x,
+		0.0,  1.0, 0.0, -focalPoint.y,
+		0.0,  0.0, 1.0, -focalPoint.z,
+		0.0,  0.0, 0.0,     1.0,
+	));
+
     // Compose and apply rotations
 	// (S then T then R1 then R2, remember this reads backwards)
 	let homogeneous_position = vec4f(in.position, 1.0);
-	let position = (R2 * R1 * T * S * homogeneous_position).xyz;
+	let viewspace_position = T2 * R2 * R1 * T * S * homogeneous_position;
 
-	out.position = vec4<f32>(position.x, position.y * ratio, position.z * 0.5 + 0.5, 1.0);
+	// Orthographic projection
+	// let P = makeOrthographicProj(ratio, 0.01, 100.0, 1.0);
+
+	// Perspective projection
+	let P = makePerspectiveProj(ratio, 0.01, 100.0, 2.0);
+
+	out.position = P * viewspace_position;
 
     out.color = in.color;
     return out;
+}
+
+/**
+ * Option B: Use matrices that have been precomputed and stored in the uniform buffer
+ * (recommended)
+ */
+fn vs_main_optionB(in: VertexInput) -> VertexOutput {
+	var out: VertexOutput;
+	out.position = uMyUniforms.projectionMatrix * uMyUniforms.viewMatrix * uMyUniforms.modelMatrix * vec4f(in.position, 1.0);
+	out.color = in.color;
+	return out;
+}
+
+@vertex
+fn vs_main(in: VertexInput) -> VertexOutput
+{
+    // return vs_main_optionA(in);
+	return vs_main_optionB(in);
 }
 
 @fragment

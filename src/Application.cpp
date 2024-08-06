@@ -5,6 +5,10 @@
 
 #include <GLFW/glfw3.h>
 #include <glfw3webgpu.h>
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
+#define GLM_FORCE_LEFT_HANDED
+#include <glm/ext.hpp>
+#include <glm/glm.hpp>
 #include <magic_enum.hpp>
 
 #ifdef __EMSCRIPTEN__
@@ -22,9 +26,14 @@
 
 namespace fs = std::filesystem;
 
+constexpr float PI = 3.14159265358979323846f;
+
 struct MyUniforms
 {
-    std::array<float, 4> color;
+    glm::mat4x4 projectionMatrix;
+    glm::mat4x4 viewMatrix;
+    glm::mat4x4 modelMatrix;
+    glm::vec4 color;
     float time;
     float _pat[3];
 };
@@ -36,6 +45,7 @@ bool loadGeometry(const fs::path& path,
                   std::vector<float>& pointData,
                   std::vector<uint16_t>& indexData,
                   int dimensions);
+MyUniforms createUniforms();
 
 struct Application::AppData
 {
@@ -61,6 +71,9 @@ public:
     wgpu::TextureView depthTextureView;
 
     MyUniforms uniforms;
+
+    glm::mat4x4 T1;
+    glm::mat4x4 S;
 };
 
 Application::Application()
@@ -179,12 +192,21 @@ void Application::MainLoop()
 {
     glfwPollEvents();
 
-    // Update uniform buffer
+    // Update uniform buffer. Only update 1st float of the buffer
     data->uniforms.time = static_cast<float>(glfwGetTime());
     data->queue.writeBuffer(data->uniformBuffer,
                             offsetof(MyUniforms, time),
                             &data->uniforms.time,
                             sizeof(MyUniforms::time));
+
+    // Update view matrix
+    float angle                = data->uniforms.time;
+    glm::mat4x4 R1             = glm::rotate(glm::mat4x4(1.0), angle, glm::vec3(0.0, 0.0, 1.0));
+    data->uniforms.modelMatrix = R1 * data->T1 * data->S;
+    data->queue.writeBuffer(data->uniformBuffer,
+                            offsetof(MyUniforms, modelMatrix),
+                            &data->uniforms.modelMatrix,
+                            sizeof(MyUniforms::modelMatrix));
 
     // Get the next target texture view
     wgpu::TextureView targetView = GetNextSurfaceTextureView();
@@ -478,12 +500,7 @@ void Application::InitializeBuffers()
     data->uniformBuffer         = data->device.createBuffer(bufferDesc);
 
     // Upload the initial value of the uniforms
-    MyUniforms uniforms;
-
-    // Upload first value
-    uniforms.time  = 1.0f;
-    uniforms.color = {0.0f, 1.0f, 0.4f, 1.0f};
-    data->uniforms = uniforms;
+    data->uniforms = createUniforms();
     data->queue.writeBuffer(data->uniformBuffer, 0, &data->uniforms, sizeof(MyUniforms));
 
     // Create a binding
@@ -523,7 +540,7 @@ wgpu::RequiredLimits Application::GetRequiredLimits(wgpu::Adapter adapter) const
     // We use at most 1 uniform buffer per stage
     requiredLimits.limits.maxUniformBuffersPerShaderStage = 1;
     // Uniform structs have a size of maximum 16 float (more than what we need)
-    requiredLimits.limits.maxUniformBufferBindingSize = 16 * 4;
+    requiredLimits.limits.maxUniformBufferBindingSize = 16 * 4 * sizeof(float);
     // For the depth buffer, we enable textures (up to the size of the window):
     requiredLimits.limits.maxTextureDimension1D = 480;
     requiredLimits.limits.maxTextureDimension2D = 640;
@@ -624,4 +641,110 @@ bool loadGeometry(const fs::path& path, std::vector<float>& pointData, std::vect
         }
     }
     return true;
+}
+
+MyUniforms Application::createUniforms()
+{
+    MyUniforms uniforms;
+
+    // Translate the view
+    glm::vec3 focalPoint(0.0, 0.0, -2.0);
+    glm::mat4x4 T2 = glm::transpose(glm::mat4x4(1.0,
+                                                0.0,
+                                                0.0,
+                                                -focalPoint.x,
+                                                0.0,
+                                                1.0,
+                                                0.0,
+                                                -focalPoint.y,
+                                                0.0,
+                                                0.0,
+                                                1.0,
+                                                -focalPoint.z,
+                                                0.0,
+                                                0.0,
+                                                0.0,
+                                                1.0));
+
+    // Build transform matrices
+    // Option A: Manually define matrices
+    // Scale the object
+    glm::mat4x4 S =
+        glm::transpose(glm::mat4x4(0.3, 0.0, 0.0, 0.0, 0.0, 0.3, 0.0, 0.0, 0.0, 0.0, 0.3, 0.0, 0.0, 0.0, 0.0, 1.0));
+
+    // Translate the object
+    glm::mat4x4 T1 =
+        glm::transpose(glm::mat4x4(1.0, 0.0, 0.0, 0.5, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0));
+
+    // Rotate the object
+    float angle1 = 2.0f;  // arbitrary time
+    float c1     = glm::cos(angle1);
+    float s1     = glm::sin(angle1);
+    glm::mat4x4 R1 =
+        glm::transpose(glm::mat4x4(c1, s1, 0.0, 0.0, -s1, c1, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0));
+
+    // Rotate the view point
+    float angle2 = 3.0f * PI / 4.0f;
+    float c2     = glm::cos(angle2);
+    float s2     = glm::sin(angle2);
+    glm::mat4x4 R2 =
+        glm::transpose(glm::mat4x4(1.0, 0.0, 0.0, 0.0, 0.0, c2, s2, 0.0, 0.0, -s2, c2, 0.0, 0.0, 0.0, 0.0, 1.0));
+
+    uniforms.modelMatrix = R1 * T1 * S;
+    uniforms.viewMatrix  = T2 * R2;
+
+    float ratio               = 640.0f / 480.0f;
+    float focalLength         = 2.0;
+    float near                = 0.01f;
+    float far                 = 100.0f;
+    float divider             = 1 / (focalLength * (far - near));
+    uniforms.projectionMatrix = glm::transpose(glm::mat4x4(1.0,
+                                                           0.0,
+                                                           0.0,
+                                                           0.0,
+                                                           0.0,
+                                                           ratio,
+                                                           0.0,
+                                                           0.0,
+                                                           0.0,
+                                                           0.0,
+                                                           far * divider,
+                                                           -far * near * divider,
+                                                           0.0,
+                                                           0.0,
+                                                           1.0 / focalLength,
+                                                           0.0));
+
+    // Option B: Use GLM extensions
+    S                    = glm::scale(glm::mat4x4(1.0), glm::vec3(0.3f));
+    T1                   = glm::translate(glm::mat4x4(1.0), glm::vec3(0.5, 0.0, 0.0));
+    R1                   = glm::rotate(glm::mat4x4(1.0), angle1, glm::vec3(0.0, 0.0, 1.0));
+    uniforms.modelMatrix = R1 * T1 * S;
+
+    R2                  = glm::rotate(glm::mat4x4(1.0), -angle2, glm::vec3(1.0, 0.0, 0.0));
+    T2                  = glm::translate(glm::mat4x4(1.0), -focalPoint);
+    uniforms.viewMatrix = T2 * R2;
+
+    // Option C: A different way of using GLM extensions
+    glm::mat4x4 M(1.0);
+    M                    = glm::rotate(M, angle1, glm::vec3(0.0, 0.0, 1.0));
+    M                    = glm::translate(M, glm::vec3(0.5, 0.0, 0.0));
+    M                    = glm::scale(M, glm::vec3(0.3f));
+    uniforms.modelMatrix = M;
+
+    glm::mat4x4 V(1.0);
+    V                   = glm::translate(V, -focalPoint);
+    V                   = glm::rotate(V, -angle2, glm::vec3(1.0, 0.0, 0.0));
+    uniforms.viewMatrix = V;
+
+    float fov                 = 2 * glm::atan(1 / focalLength);
+    uniforms.projectionMatrix = glm::perspective(fov, ratio, near, far);
+
+    uniforms.time  = 1.0f;
+    uniforms.color = {0.0f, 1.0f, 0.4f, 1.0f};
+
+    data->S  = S;
+    data->T1 = T1;
+
+    return uniforms;
 }
