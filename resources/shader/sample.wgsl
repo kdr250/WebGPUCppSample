@@ -42,6 +42,17 @@ fn makeOrthographicProj(ratio: f32, near: f32, far: f32, scale: f32) -> mat4x4f 
 	));
 }
 
+// Build a perspective projection matrix
+fn makePerspectiveProj(ratio: f32, near: f32, far: f32, focalLength: f32) -> mat4x4f {
+	let divides = 1.0 / (far - near);
+	return transpose(mat4x4f(
+		focalLength,         0.0,              0.0,               0.0,
+		    0.0,     focalLength * ratio,      0.0,               0.0,
+		    0.0,             0.0,         far * divides, -far * near * divides,
+		    0.0,             0.0,              1.0,               0.0,
+	));
+}
+
 @vertex
 fn vs_main(in: VertexInput) -> VertexOutput
 {
@@ -102,7 +113,10 @@ fn vs_main(in: VertexInput) -> VertexOutput
 	let viewspace_position = T2 * R2 * R1 * T * S * homogeneous_position;
 
 	// Orthographic projection
-	let P = makeOrthographicProj(ratio, 0.01, 100.0, 2.0);
+	// let P = makeOrthographicProj(ratio, 0.01, 100.0, 1.0);
+
+	// Perspective projection
+	let P = makePerspectiveProj(ratio, 0.01, 100.0, 2.0);
 
 	out.position = P * viewspace_position;
 
