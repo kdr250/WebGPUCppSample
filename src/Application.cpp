@@ -186,8 +186,6 @@ void Application::Terminate()
     data->depthTexture.release();
     data->pointBuffer.destroy();
     data->pointBuffer.release();
-    data->indexBuffer.destroy();
-    data->indexBuffer.release();
     data->pipeline.release();
     data->surface.unconfigure();
     data->queue.release();
@@ -269,11 +267,10 @@ void Application::MainLoop()
 
     // Set both vertex and index buffers
     renderPass.setVertexBuffer(0, data->pointBuffer, 0, data->pointBuffer.getSize());
-    renderPass.setIndexBuffer(data->indexBuffer, wgpu::IndexFormat::Uint16, 0, data->indexBuffer.getSize());
 
     // Set binding group
     renderPass.setBindGroup(0, data->bindGroup, 0, nullptr);
-    renderPass.drawIndexed(data->indexCount, 1, 0, 0, 0);
+    renderPass.draw(data->indexCount, 1, 0, 0);
 
     renderPass.end();
     renderPass.release();
@@ -481,31 +478,22 @@ void wgpuPollEvent([[maybe_unused]] wgpu::Device device, [[maybe_unused]] bool y
 
 void Application::InitializeBuffers()
 {
-    std::vector<float> pointData;
-    std::vector<uint16_t> indexData;
+    std::vector<VertexAttributes> vertexData;
 
-    bool success = loadGeometryFromObj("resources/shader/pyramid.obj", pointData, indexData, 6);
+    bool success = loadGeometryFromObj("resources/shader/pyramid.obj", vertexData);
     assert(success && "Could not load geometry!");
 
     // we will declare indexCount as a member of the Application class
-    data->indexCount = static_cast<uint32_t>(indexData.size());
+    data->indexCount = static_cast<uint32_t>(vertexData.size());
 
-    // Create point buffer
+    // Create vertex buffer
     wgpu::BufferDescriptor bufferDesc;
-    bufferDesc.size             = pointData.size() * sizeof(float);
+    bufferDesc.size             = vertexData.size() * sizeof(VertexAttributes);
     bufferDesc.usage            = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Vertex;
     bufferDesc.mappedAtCreation = false;
     data->pointBuffer           = data->device.createBuffer(bufferDesc);
 
-    data->queue.writeBuffer(data->pointBuffer, 0, pointData.data(), bufferDesc.size);
-
-    // Create index buffer
-    bufferDesc.size   = indexData.size() * sizeof(uint16_t);
-    bufferDesc.size   = (bufferDesc.size + 3) & ~3;  // round up to the next multiple of 4
-    bufferDesc.usage  = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Index;
-    data->indexBuffer = data->device.createBuffer(bufferDesc);
-
-    data->queue.writeBuffer(data->indexBuffer, 0, indexData.data(), bufferDesc.size);
+    data->queue.writeBuffer(data->pointBuffer, 0, vertexData.data(), bufferDesc.size);
 
     // Create uniform buffer.
     bufferDesc.size             = sizeof(MyUniforms);
@@ -544,7 +532,7 @@ wgpu::RequiredLimits Application::GetRequiredLimits(wgpu::Adapter adapter) const
     // We should also tell that we use 1 vertex buffers
     requiredLimits.limits.maxVertexBuffers = 1;
     // Maximum size of a buffer is 6 vertices of 2 float each
-    requiredLimits.limits.maxBufferSize = 16 * sizeof(VertexAttributes);
+    requiredLimits.limits.maxBufferSize = 10000 * sizeof(VertexAttributes);
     // Maximum stride between 2 consecutive vertices in the vertex buffer
     requiredLimits.limits.maxVertexBufferArrayStride = sizeof(VertexAttributes);
     // There is a maximum of 3 float forwarded from vertex to fragment shader
@@ -657,7 +645,7 @@ MyUniforms Application::createUniforms()
     MyUniforms uniforms;
 
     // Translate the view
-    glm::vec3 focalPoint(0.0, 0.0, -2.0);
+    glm::vec3 focalPoint(0.0, 0.0, -1.0);
     glm::mat4x4 T2 = glm::transpose(glm::mat4x4(1.0,
                                                 0.0,
                                                 0.0,
@@ -682,8 +670,7 @@ MyUniforms Application::createUniforms()
         glm::transpose(glm::mat4x4(0.3, 0.0, 0.0, 0.0, 0.0, 0.3, 0.0, 0.0, 0.0, 0.0, 0.3, 0.0, 0.0, 0.0, 0.0, 1.0));
 
     // Translate the object
-    glm::mat4x4 T1 =
-        glm::transpose(glm::mat4x4(1.0, 0.0, 0.0, 0.5, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0));
+    glm::mat4x4 T1 = glm::mat4x4(1.0);
 
     // Rotate the object
     float angle1 = 2.0f;  // arbitrary time
