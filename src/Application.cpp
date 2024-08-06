@@ -10,6 +10,8 @@
 #include <glm/ext.hpp>
 #include <glm/glm.hpp>
 #include <magic_enum.hpp>
+#define TINYOBJLOADER_IMPLEMENTATION
+#include <tiny_obj_loader.h>
 
 #ifdef __EMSCRIPTEN__
     #include <emscripten.h>
@@ -52,11 +54,7 @@ struct MyUniforms
 static_assert(sizeof(MyUniforms) % 16 == 0);
 
 wgpu::ShaderModule loadShaderModule(const fs::path& path, wgpu::Device device);
-bool loadGeometry(const fs::path& path,
-                  std::vector<float>& pointData,
-                  std::vector<uint16_t>& indexData,
-                  int dimensions);
-MyUniforms createUniforms();
+bool loadGeometryFromObj(const fs::path& path, std::vector<VertexAttributes>& vertexData);
 
 struct Application::AppData
 {
@@ -486,7 +484,7 @@ void Application::InitializeBuffers()
     std::vector<float> pointData;
     std::vector<uint16_t> indexData;
 
-    bool success = loadGeometry("resources/shader/pyramid.txt", pointData, indexData, 6);
+    bool success = loadGeometryFromObj("resources/shader/pyramid.obj", pointData, indexData, 6);
     assert(success && "Could not load geometry!");
 
     // we will declare indexCount as a member of the Application class
@@ -598,64 +596,59 @@ wgpu::ShaderModule loadShaderModule(const fs::path& path, wgpu::Device device)
     return device.createShaderModule(shaderDesc);
 }
 
-bool loadGeometry(const fs::path& path, std::vector<float>& pointData, std::vector<uint16_t>& indexData, int dimensions)
+bool loadGeometryFromObj(const fs::path& path, std::vector<VertexAttributes>& vertexData)
 {
-    std::ifstream file(path);
-    if (!file.is_open())
+    tinyobj::attrib_t attrib;
+    std::vector<tinyobj::shape_t> shapes;
+    std::vector<tinyobj::material_t> materials;
+
+    std::string warn;
+    std::string err;
+
+    bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, path.string().c_str());
+
+    if (!warn.empty())
+    {
+        std::cout << warn << std::endl;
+    }
+
+    if (!err.empty())
+    {
+        std::cerr << err << std::endl;
+    }
+
+    if (!ret)
     {
         return false;
     }
 
-    pointData.clear();
-    indexData.clear();
-
-    enum class Section
+    // Filling in vertexData:
+    vertexData.clear();
+    for (const auto& shape : shapes)
     {
-        None,
-        Points,
-        Indices,
-    };
-    Section currentSection = Section::None;
+        size_t offset = vertexData.size();
+        vertexData.resize(offset + shape.mesh.indices.size());
 
-    float value;
-    uint16_t index;
-    std::string line;
-    while (!file.eof())
-    {
-        getline(file, line);
-        if (line == "[points]")
+        for (size_t i = 0; i < shape.mesh.indices.size(); ++i)
         {
-            currentSection = Section::Points;
-        }
-        else if (line == "[indices]")
-        {
-            currentSection = Section::Indices;
-        }
-        else if (line[0] == '#' || line.empty())
-        {
-            // Do nothing, this is a comment
-        }
-        else if (currentSection == Section::Points)
-        {
-            std::istringstream iss(line);
-            // Get x, y, r, g, b
-            for (int i = 0; i < dimensions + 3; ++i)
-            {
-                iss >> value;
-                pointData.emplace_back(value);
-            }
-        }
-        else if (currentSection == Section::Indices)
-        {
-            std::istringstream iss(line);
-            // Get corner #0 #1 and #2
-            for (int i = 0; i < 3; ++i)
-            {
-                iss >> index;
-                indexData.emplace_back(index);
-            }
+            const tinyobj::index_t& idx = shape.mesh.indices[i];
+
+            vertexData[offset + i].position = {
+                attrib.vertices[3 * idx.vertex_index + 0],
+                -attrib.vertices[3 * idx.vertex_index + 2],  // Add a minus to avoid mirroring
+                attrib.vertices[3 * idx.vertex_index + 1]};
+
+            // Also apply the transform to normals!!
+            vertexData[offset + i].normal = {attrib.normals[3 * idx.normal_index + 0],
+                                             -attrib.normals[3 * idx.normal_index + 2],
+                                             attrib.normals[3 * idx.normal_index + 1]};
+
+            vertexData[offset + i].color = {attrib.colors[3 * idx.vertex_index + 0],
+                                            attrib.colors[3 * idx.vertex_index + 1],
+                                            attrib.colors[3 * idx.vertex_index + 2]};
         }
     }
+
     return true;
 }
 
