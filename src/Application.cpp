@@ -32,8 +32,10 @@ struct MyUniforms
 static_assert(sizeof(MyUniforms) % 16 == 0);
 
 wgpu::ShaderModule loadShaderModule(const fs::path& path, wgpu::Device device);
-bool loadGeometry(const fs::path& path, std::vector<float>& pointData, std::vector<uint16_t>& indexData);
-uint32_t ceilToNextMultiple(uint32_t value, uint32_t step);
+bool loadGeometry(const fs::path& path,
+                  std::vector<float>& pointData,
+                  std::vector<uint16_t>& indexData,
+                  int dimensions);
 
 struct Application::AppData
 {
@@ -57,7 +59,6 @@ public:
     wgpu::BindGroup bindGroup;
 
     MyUniforms uniforms;
-    uint32_t uniformStride;
 };
 
 Application::Application()
@@ -215,16 +216,8 @@ void Application::MainLoop()
     renderPass.setVertexBuffer(0, data->pointBuffer, 0, data->pointBuffer.getSize());
     renderPass.setIndexBuffer(data->indexBuffer, wgpu::IndexFormat::Uint16, 0, data->indexBuffer.getSize());
 
-    uint32_t dynamicOffset = 0;
-
     // Set binding group
-    dynamicOffset = 0 * data->uniformStride;
-    renderPass.setBindGroup(0, data->bindGroup, 1, &dynamicOffset);
-    renderPass.drawIndexed(data->indexCount, 1, 0, 0, 0);
-
-    // Set binding group with a different uniform offset
-    dynamicOffset = 1 * data->uniformStride;
-    renderPass.setBindGroup(0, data->bindGroup, 1, &dynamicOffset);
+    renderPass.setBindGroup(0, data->bindGroup, 0, nullptr);
     renderPass.drawIndexed(data->indexCount, 1, 0, 0, 0);
 
     renderPass.end();
@@ -308,17 +301,17 @@ void Application::InitializePipeline()
 
     // Describe the position attribute
     vertexAttribs[0].shaderLocation = 0;  // @location(0)
-    vertexAttribs[0].format         = wgpu::VertexFormat::Float32x2;
+    vertexAttribs[0].format         = wgpu::VertexFormat::Float32x3;
     vertexAttribs[0].offset         = 0;
 
     // Describe the color attribute
     vertexAttribs[1].shaderLocation = 1;  // @location(1)
     vertexAttribs[1].format         = wgpu::VertexFormat::Float32x3;
-    vertexAttribs[1].offset         = 2 * sizeof(float);
+    vertexAttribs[1].offset         = 3 * sizeof(float);
 
     pointBufferLayout.attributeCount = static_cast<uint32_t>(vertexAttribs.size());
     pointBufferLayout.attributes     = vertexAttribs.data();
-    pointBufferLayout.arrayStride    = 5 * sizeof(float);
+    pointBufferLayout.arrayStride    = 6 * sizeof(float);
     pointBufferLayout.stepMode       = wgpu::VertexStepMode::Vertex;
 
     pipelineDesc.vertex.bufferCount = 1;
@@ -360,7 +353,6 @@ void Application::InitializePipeline()
     bindingLayout.visibility                 = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
     bindingLayout.buffer.type                = wgpu::BufferBindingType::Uniform;
     bindingLayout.buffer.minBindingSize      = sizeof(MyUniforms);
-    bindingLayout.buffer.hasDynamicOffset    = true;
 
     // Create a bind group layout
     wgpu::BindGroupLayoutDescriptor bindGroupLayoutDesc;
@@ -403,7 +395,7 @@ void Application::InitializeBuffers()
     std::vector<float> pointData;
     std::vector<uint16_t> indexData;
 
-    bool success = loadGeometry("resources/shader/webgpu.txt", pointData, indexData);
+    bool success = loadGeometry("resources/shader/pyramid.txt", pointData, indexData, 3);
     assert(success && "Could not load geometry!");
 
     // we will declare indexCount as a member of the Application class
@@ -426,13 +418,8 @@ void Application::InitializeBuffers()
 
     data->queue.writeBuffer(data->indexBuffer, 0, indexData.data(), bufferDesc.size);
 
-    // Create uniform buffer. The buffer will only contain 1 float with the value of uTime
-    wgpu::SupportedLimits supportedLimits;
-    data->device.getLimits(&supportedLimits);
-    wgpu::Limits deviceLimits = supportedLimits.limits;
-    data->uniformStride =
-        ceilToNextMultiple((uint32_t)sizeof(MyUniforms), (uint32_t)deviceLimits.minUniformBufferOffsetAlignment);
-    bufferDesc.size             = data->uniformStride + sizeof(MyUniforms);
+    // Create uniform buffer.
+    bufferDesc.size             = sizeof(MyUniforms);
     bufferDesc.usage            = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Uniform;
     bufferDesc.mappedAtCreation = false;
     data->uniformBuffer         = data->device.createBuffer(bufferDesc);
@@ -445,12 +432,6 @@ void Application::InitializeBuffers()
     uniforms.color = {0.0f, 1.0f, 0.4f, 1.0f};
     data->uniforms = uniforms;
     data->queue.writeBuffer(data->uniformBuffer, 0, &data->uniforms, sizeof(MyUniforms));
-
-    // Upload second value
-    uniforms.time  = 1.0f;
-    uniforms.color = {1.0f, 1.0f, 1.0f, 0.7f};
-    data->uniforms = uniforms;
-    data->queue.writeBuffer(data->uniformBuffer, data->uniformStride, &data->uniforms, sizeof(MyUniforms));
 
     // Create a binding
     wgpu::BindGroupEntry binding;
@@ -481,7 +462,7 @@ wgpu::RequiredLimits Application::GetRequiredLimits(wgpu::Adapter adapter) const
     // Maximum size of a buffer is 6 vertices of 2 float each
     requiredLimits.limits.maxBufferSize = 15 * 5 * sizeof(float);
     // Maximum stride between 2 consecutive vertices in the vertex buffer
-    requiredLimits.limits.maxVertexBufferArrayStride = 5 * sizeof(float);
+    requiredLimits.limits.maxVertexBufferArrayStride = 6 * sizeof(float);
     // There is a maximum of 3 float forwarded from vertex to fragment shader
     requiredLimits.limits.maxInterStageShaderComponents = 3;
     // We use at most 1 bind group for now
@@ -490,8 +471,6 @@ wgpu::RequiredLimits Application::GetRequiredLimits(wgpu::Adapter adapter) const
     requiredLimits.limits.maxUniformBuffersPerShaderStage = 1;
     // Uniform structs have a size of maximum 16 float (more than what we need)
     requiredLimits.limits.maxUniformBufferBindingSize = 16 * 4;
-    // Extra limit requirement
-    requiredLimits.limits.maxDynamicUniformBuffersPerPipelineLayout = 1;
 
     // These two limits are different because they are "minimum" limits,
     // they are the only ones we are may forward from the adapter's supported
@@ -500,12 +479,6 @@ wgpu::RequiredLimits Application::GetRequiredLimits(wgpu::Adapter adapter) const
     requiredLimits.limits.minUniformBufferOffsetAlignment = supportedLimits.limits.minUniformBufferOffsetAlignment;
 
     return requiredLimits;
-}
-
-uint32_t ceilToNextMultiple(uint32_t value, uint32_t step)
-{
-    uint32_t devideAndCeil = value / step + (value % step == 0 ? 0 : 1);
-    return step * devideAndCeil;
 }
 
 wgpu::ShaderModule loadShaderModule(const fs::path& path, wgpu::Device device)
@@ -535,7 +508,7 @@ wgpu::ShaderModule loadShaderModule(const fs::path& path, wgpu::Device device)
     return device.createShaderModule(shaderDesc);
 }
 
-bool loadGeometry(const fs::path& path, std::vector<float>& pointData, std::vector<uint16_t>& indexData)
+bool loadGeometry(const fs::path& path, std::vector<float>& pointData, std::vector<uint16_t>& indexData, int dimensions)
 {
     std::ifstream file(path);
     if (!file.is_open())
@@ -576,7 +549,7 @@ bool loadGeometry(const fs::path& path, std::vector<float>& pointData, std::vect
         {
             std::istringstream iss(line);
             // Get x, y, r, g, b
-            for (int i = 0; i < 5; ++i)
+            for (int i = 0; i < dimensions + 3; ++i)
             {
                 iss >> value;
                 pointData.emplace_back(value);
