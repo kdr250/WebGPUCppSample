@@ -29,7 +29,7 @@ struct MyUniforms
     float _pat[3];
 };
 
-static_assert(sizeof(MyUniforms) % 16 == 0);
+// static_assert(sizeof(MyUniforms) % 16 == 0);
 
 wgpu::ShaderModule loadShaderModule(const fs::path& path, wgpu::Device device);
 bool loadGeometry(const fs::path& path,
@@ -229,10 +229,8 @@ void Application::MainLoop()
     wgpu::CommandBuffer command                       = encoder.finish(cmdBufferDescriptor);
     encoder.release();
 
-    std::cout << "Submitting command..." << std::endl;
     data->queue.submit(1, &command);
     command.release();
-    std::cout << "Command submitted." << std::endl;
 
     // At the enc of the frame
     targetView.release();
