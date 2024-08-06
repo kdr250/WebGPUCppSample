@@ -16,11 +16,13 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <sstream>
 #include <string>
 #include <vector>
 
-namespace fs = std::filesystem;
+namespace fs        = std::filesystem;
+constexpr auto NaNf = std::numeric_limits<float>::quiet_NaN();
 
 struct MyUniforms
 {
@@ -210,10 +212,27 @@ void Application::MainLoop()
     renderPassColorAttachment.depthSlice = WGPU_DEPTH_SLICE_UNDEFINED;
 #endif  // NOT WEBGPU_BACKEND_WGPU
 
-    renderPassDesc.colorAttachmentCount   = 1;
-    renderPassDesc.colorAttachments       = &renderPassColorAttachment;
-    renderPassDesc.depthStencilAttachment = nullptr;
-    renderPassDesc.timestampWrites        = nullptr;
+    renderPassDesc.colorAttachmentCount = 1;
+    renderPassDesc.colorAttachments     = &renderPassColorAttachment;
+
+    // We now add a depth/stencil attachment:
+    wgpu::RenderPassDepthStencilAttachment depthStencilAttachment;
+    depthStencilAttachment.view              = data->depthTextureView;
+    depthStencilAttachment.depthClearValue   = 1.0f;
+    depthStencilAttachment.depthLoadOp       = wgpu::LoadOp::Clear;
+    depthStencilAttachment.depthStoreOp      = wgpu::StoreOp::Store;
+    depthStencilAttachment.depthReadOnly     = false;
+    depthStencilAttachment.stencilClearValue = 0;
+#ifdef WEBGPU_BACKEND_WGPU
+    depthStencilAttachment.stencilLoadOp  = wgpu::LoadOp::Clear;
+    depthStencilAttachment.stencilStoreOp = wgpu::StoreOp::Store;
+#else
+    depthStencilAttachment.stencilLoadOp  = wgpu::LoadOp::Undefined;
+    depthStencilAttachment.stencilStoreOp = wgpu::StoreOp::Undefined;
+#endif
+    depthStencilAttachment.stencilReadOnly = true;
+    renderPassDesc.depthStencilAttachment  = &depthStencilAttachment;
+    renderPassDesc.timestampWrites         = nullptr;
 
     // Create the render pass and end it immediately (we only clear the screen but do not draw anything)
     wgpu::RenderPassEncoder renderPass = encoder.beginRenderPass(renderPassDesc);
