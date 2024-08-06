@@ -28,6 +28,17 @@ namespace fs = std::filesystem;
 
 constexpr float PI = 3.14159265358979323846f;
 
+/**
+ * A structure that describes the data layout in the vertex buffer
+ * We do not instantiate it but use it in `sizeof` and `offsetof`
+ */
+struct VertexAttributes
+{
+    glm::vec3 position;
+    glm::vec3 normal;
+    glm::vec3 color;
+};
+
 struct MyUniforms
 {
     glm::mat4x4 projectionMatrix;
@@ -341,21 +352,26 @@ void Application::InitializePipeline()
     pipelineDesc.primitive.cullMode         = wgpu::CullMode::None;
 
     wgpu::VertexBufferLayout pointBufferLayout;
-    std::vector<wgpu::VertexAttribute> vertexAttribs(2);
+    std::vector<wgpu::VertexAttribute> vertexAttribs(3);
 
     // Describe the position attribute
     vertexAttribs[0].shaderLocation = 0;  // @location(0)
     vertexAttribs[0].format         = wgpu::VertexFormat::Float32x3;
-    vertexAttribs[0].offset         = 0;
+    vertexAttribs[0].offset         = offsetof(VertexAttributes, position);
 
-    // Describe the color attribute
+    // Describe the normal attribute
     vertexAttribs[1].shaderLocation = 1;  // @location(1)
     vertexAttribs[1].format         = wgpu::VertexFormat::Float32x3;
-    vertexAttribs[1].offset         = 3 * sizeof(float);
+    vertexAttribs[1].offset         = offsetof(VertexAttributes, normal);
+
+    // Describe the color attribute
+    vertexAttribs[2].shaderLocation = 2;  // @location(2)
+    vertexAttribs[2].format         = wgpu::VertexFormat::Float32x3;
+    vertexAttribs[2].offset         = offsetof(VertexAttributes, color);
 
     pointBufferLayout.attributeCount = static_cast<uint32_t>(vertexAttribs.size());
     pointBufferLayout.attributes     = vertexAttribs.data();
-    pointBufferLayout.arrayStride    = 6 * sizeof(float);
+    pointBufferLayout.arrayStride    = sizeof(VertexAttributes);
     pointBufferLayout.stepMode       = wgpu::VertexStepMode::Vertex;
 
     pipelineDesc.vertex.bufferCount = 1;
@@ -470,7 +486,7 @@ void Application::InitializeBuffers()
     std::vector<float> pointData;
     std::vector<uint16_t> indexData;
 
-    bool success = loadGeometry("resources/shader/pyramid.txt", pointData, indexData, 3);
+    bool success = loadGeometry("resources/shader/pyramid.txt", pointData, indexData, 6);
     assert(success && "Could not load geometry!");
 
     // we will declare indexCount as a member of the Application class
@@ -526,15 +542,15 @@ wgpu::RequiredLimits Application::GetRequiredLimits(wgpu::Adapter adapter) const
 
     wgpu::RequiredLimits requiredLimits = wgpu::Default;
     // We use at most 1 vertex attribute for now
-    requiredLimits.limits.maxVertexAttributes = 2;
+    requiredLimits.limits.maxVertexAttributes = 3;
     // We should also tell that we use 1 vertex buffers
     requiredLimits.limits.maxVertexBuffers = 1;
     // Maximum size of a buffer is 6 vertices of 2 float each
-    requiredLimits.limits.maxBufferSize = 15 * 5 * sizeof(float);
+    requiredLimits.limits.maxBufferSize = 16 * sizeof(VertexAttributes);
     // Maximum stride between 2 consecutive vertices in the vertex buffer
-    requiredLimits.limits.maxVertexBufferArrayStride = 6 * sizeof(float);
+    requiredLimits.limits.maxVertexBufferArrayStride = sizeof(VertexAttributes);
     // There is a maximum of 3 float forwarded from vertex to fragment shader
-    requiredLimits.limits.maxInterStageShaderComponents = 3;
+    requiredLimits.limits.maxInterStageShaderComponents = 6;
     // We use at most 1 bind group for now
     requiredLimits.limits.maxBindGroups = 1;
     // We use at most 1 uniform buffer per stage
