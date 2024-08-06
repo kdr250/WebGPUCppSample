@@ -87,12 +87,24 @@ fn vs_main(in: VertexInput) -> VertexOutput
 		0.0,  0.0, 0.0, 1.0,
 	));
 
+	// Move the view point
+	let focalPoint = vec3f(0.0, 0.0, -2.0);
+	let T2 = transpose(mat4x4f(
+		1.0,  0.0, 0.0, -focalPoint.x,
+		0.0,  1.0, 0.0, -focalPoint.y,
+		0.0,  0.0, 1.0, -focalPoint.z,
+		0.0,  0.0, 0.0,     1.0,
+	));
+
     // Compose and apply rotations
 	// (S then T then R1 then R2, remember this reads backwards)
 	let homogeneous_position = vec4f(in.position, 1.0);
-	let position = (R2 * R1 * T * S * homogeneous_position).xyz;
+	let viewspace_position = T2 * R2 * R1 * T * S * homogeneous_position;
 
-	out.position = vec4<f32>(position.x, position.y * ratio, position.z * 0.5 + 0.5, 1.0);
+	// Orthographic projection
+	let P = makeOrthographicProj(ratio, 0.01, 100.0, 2.0);
+
+	out.position = P * viewspace_position;
 
     out.color = in.color;
     return out;
