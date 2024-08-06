@@ -360,7 +360,7 @@ void Application::InitializePipeline()
     vertexAttribs[0].offset         = offsetof(VertexAttributes, position);
 
     // Describe the normal attribute
-    vertexAttribs[1].shaderLocation = 2;  // @location(1)
+    vertexAttribs[1].shaderLocation = 1;  // @location(1)
     vertexAttribs[1].format         = wgpu::VertexFormat::Float32x3;
     vertexAttribs[1].offset         = offsetof(VertexAttributes, normal);
 
