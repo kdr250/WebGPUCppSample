@@ -16,13 +16,11 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <limits>
 #include <sstream>
 #include <string>
 #include <vector>
 
-namespace fs        = std::filesystem;
-constexpr auto NaNf = std::numeric_limits<float>::quiet_NaN();
+namespace fs = std::filesystem;
 
 struct MyUniforms
 {
