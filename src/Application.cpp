@@ -29,7 +29,7 @@ struct MyUniforms
     float _pat[3];
 };
 
-// static_assert(sizeof(MyUniforms) % 16 == 0);
+static_assert(sizeof(MyUniforms) % 16 == 0);
 
 wgpu::ShaderModule loadShaderModule(const fs::path& path, wgpu::Device device);
 bool loadGeometry(const fs::path& path,
@@ -339,7 +339,15 @@ void Application::InitializePipeline()
 
     pipelineDesc.fragment = &fragmentState;
 
-    pipelineDesc.depthStencil = nullptr;
+    // Setup a depth buffer state for the render pipeline
+    wgpu::DepthStencilState depthStencilState = wgpu::Default;
+    depthStencilState.depthCompare            = wgpu::CompareFunction::Less;
+    depthStencilState.depthWriteEnabled       = true;
+    wgpu::TextureFormat depthTextureFormat    = wgpu::TextureFormat::Depth24Plus;
+    depthStencilState.format                  = depthTextureFormat;
+    depthStencilState.stencilReadMask         = 0;
+    depthStencilState.stencilWriteMask        = 0;
+    pipelineDesc.depthStencil                 = &depthStencilState;
 
     pipelineDesc.multisample.count                  = 1;
     pipelineDesc.multisample.mask                   = ~0u;
