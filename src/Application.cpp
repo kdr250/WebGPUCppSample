@@ -57,6 +57,8 @@ public:
     wgpu::BindGroupLayout bindGroupLayout;
     wgpu::BindGroupLayoutDescriptor bindGroupLayoutDesc;
     wgpu::BindGroup bindGroup;
+    wgpu::Texture depthTexture;
+    wgpu::TextureView depthTextureView;
 
     MyUniforms uniforms;
 };
@@ -157,7 +159,12 @@ bool Application::Initialize()
 
 void Application::Terminate()
 {
+    data->depthTextureView.release();
+    data->depthTexture.destroy();
+    data->depthTexture.release();
+    data->pointBuffer.destroy();
     data->pointBuffer.release();
+    data->indexBuffer.destroy();
     data->indexBuffer.release();
     data->pipeline.release();
     data->surface.unconfigure();
@@ -378,6 +385,29 @@ void Application::InitializePipeline()
     data->pipeline = data->device.createRenderPipeline(pipelineDesc);
     std::cout << "Render pipeline: " << data->pipeline << std::endl;
 
+    // Create the depth texture
+    wgpu::TextureDescriptor depthTextureDesc;
+    depthTextureDesc.dimension       = wgpu::TextureDimension::_2D;
+    depthTextureDesc.format          = depthTextureFormat;
+    depthTextureDesc.mipLevelCount   = 1;
+    depthTextureDesc.sampleCount     = 1;
+    depthTextureDesc.size            = {640, 480, 1};
+    depthTextureDesc.usage           = wgpu::TextureUsage::RenderAttachment;
+    depthTextureDesc.viewFormatCount = 1;
+    depthTextureDesc.viewFormats     = (WGPUTextureFormat*)&depthTextureFormat;
+    data->depthTexture               = data->device.createTexture(depthTextureDesc);
+
+    // Create the view of the depth texture manipulated by the rasterizer
+    wgpu::TextureViewDescriptor depthTextureViewDesc;
+    depthTextureViewDesc.aspect          = wgpu::TextureAspect::DepthOnly;
+    depthTextureViewDesc.baseArrayLayer  = 0;
+    depthTextureViewDesc.arrayLayerCount = 1;
+    depthTextureViewDesc.baseMipLevel    = 0;
+    depthTextureViewDesc.mipLevelCount   = 1;
+    depthTextureViewDesc.dimension       = wgpu::TextureViewDimension::_2D;
+    depthTextureViewDesc.format          = depthTextureFormat;
+    data->depthTextureView               = data->depthTexture.createView(depthTextureViewDesc);
+
     shaderModule.release();
 }
 
@@ -477,6 +507,10 @@ wgpu::RequiredLimits Application::GetRequiredLimits(wgpu::Adapter adapter) const
     requiredLimits.limits.maxUniformBuffersPerShaderStage = 1;
     // Uniform structs have a size of maximum 16 float (more than what we need)
     requiredLimits.limits.maxUniformBufferBindingSize = 16 * 4;
+    // For the depth buffer, we enable textures (up to the size of the window):
+    requiredLimits.limits.maxTextureDimension1D = 480;
+    requiredLimits.limits.maxTextureDimension2D = 640;
+    requiredLimits.limits.maxTextureArrayLayers = 1;
 
     // These two limits are different because they are "minimum" limits,
     // they are the only ones we are may forward from the adapter's supported
