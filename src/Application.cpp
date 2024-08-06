@@ -29,7 +29,7 @@ struct MyUniforms
     float _pat[3];
 };
 
-// static_assert(sizeof(MyUniforms) % 16 == 0);
+static_assert(sizeof(MyUniforms) % 16 == 0);
 
 wgpu::ShaderModule loadShaderModule(const fs::path& path, wgpu::Device device);
 bool loadGeometry(const fs::path& path,
@@ -57,6 +57,8 @@ public:
     wgpu::BindGroupLayout bindGroupLayout;
     wgpu::BindGroupLayoutDescriptor bindGroupLayoutDesc;
     wgpu::BindGroup bindGroup;
+    wgpu::Texture depthTexture;
+    wgpu::TextureView depthTextureView;
 
     MyUniforms uniforms;
 };
@@ -157,7 +159,12 @@ bool Application::Initialize()
 
 void Application::Terminate()
 {
+    data->depthTextureView.release();
+    data->depthTexture.destroy();
+    data->depthTexture.release();
+    data->pointBuffer.destroy();
     data->pointBuffer.release();
+    data->indexBuffer.destroy();
     data->indexBuffer.release();
     data->pipeline.release();
     data->surface.unconfigure();
@@ -203,10 +210,27 @@ void Application::MainLoop()
     renderPassColorAttachment.depthSlice = WGPU_DEPTH_SLICE_UNDEFINED;
 #endif  // NOT WEBGPU_BACKEND_WGPU
 
-    renderPassDesc.colorAttachmentCount   = 1;
-    renderPassDesc.colorAttachments       = &renderPassColorAttachment;
-    renderPassDesc.depthStencilAttachment = nullptr;
-    renderPassDesc.timestampWrites        = nullptr;
+    renderPassDesc.colorAttachmentCount = 1;
+    renderPassDesc.colorAttachments     = &renderPassColorAttachment;
+
+    // We now add a depth/stencil attachment:
+    wgpu::RenderPassDepthStencilAttachment depthStencilAttachment;
+    depthStencilAttachment.view              = data->depthTextureView;
+    depthStencilAttachment.depthClearValue   = 1.0f;
+    depthStencilAttachment.depthLoadOp       = wgpu::LoadOp::Clear;
+    depthStencilAttachment.depthStoreOp      = wgpu::StoreOp::Store;
+    depthStencilAttachment.depthReadOnly     = false;
+    depthStencilAttachment.stencilClearValue = 0;
+#ifdef WEBGPU_BACKEND_WGPU
+    depthStencilAttachment.stencilLoadOp  = wgpu::LoadOp::Clear;
+    depthStencilAttachment.stencilStoreOp = wgpu::StoreOp::Store;
+#else
+    depthStencilAttachment.stencilLoadOp  = wgpu::LoadOp::Undefined;
+    depthStencilAttachment.stencilStoreOp = wgpu::StoreOp::Undefined;
+#endif
+    depthStencilAttachment.stencilReadOnly = true;
+    renderPassDesc.depthStencilAttachment  = &depthStencilAttachment;
+    renderPassDesc.timestampWrites         = nullptr;
 
     // Create the render pass and end it immediately (we only clear the screen but do not draw anything)
     wgpu::RenderPassEncoder renderPass = encoder.beginRenderPass(renderPassDesc);
@@ -339,7 +363,15 @@ void Application::InitializePipeline()
 
     pipelineDesc.fragment = &fragmentState;
 
-    pipelineDesc.depthStencil = nullptr;
+    // Setup a depth buffer state for the render pipeline
+    wgpu::DepthStencilState depthStencilState = wgpu::Default;
+    depthStencilState.depthCompare            = wgpu::CompareFunction::Less;
+    depthStencilState.depthWriteEnabled       = true;
+    wgpu::TextureFormat depthTextureFormat    = wgpu::TextureFormat::Depth24Plus;
+    depthStencilState.format                  = depthTextureFormat;
+    depthStencilState.stencilReadMask         = 0;
+    depthStencilState.stencilWriteMask        = 0;
+    pipelineDesc.depthStencil                 = &depthStencilState;
 
     pipelineDesc.multisample.count                  = 1;
     pipelineDesc.multisample.mask                   = ~0u;
@@ -369,6 +401,29 @@ void Application::InitializePipeline()
 
     data->pipeline = data->device.createRenderPipeline(pipelineDesc);
     std::cout << "Render pipeline: " << data->pipeline << std::endl;
+
+    // Create the depth texture
+    wgpu::TextureDescriptor depthTextureDesc;
+    depthTextureDesc.dimension       = wgpu::TextureDimension::_2D;
+    depthTextureDesc.format          = depthTextureFormat;
+    depthTextureDesc.mipLevelCount   = 1;
+    depthTextureDesc.sampleCount     = 1;
+    depthTextureDesc.size            = {640, 480, 1};
+    depthTextureDesc.usage           = wgpu::TextureUsage::RenderAttachment;
+    depthTextureDesc.viewFormatCount = 1;
+    depthTextureDesc.viewFormats     = (WGPUTextureFormat*)&depthTextureFormat;
+    data->depthTexture               = data->device.createTexture(depthTextureDesc);
+
+    // Create the view of the depth texture manipulated by the rasterizer
+    wgpu::TextureViewDescriptor depthTextureViewDesc;
+    depthTextureViewDesc.aspect          = wgpu::TextureAspect::DepthOnly;
+    depthTextureViewDesc.baseArrayLayer  = 0;
+    depthTextureViewDesc.arrayLayerCount = 1;
+    depthTextureViewDesc.baseMipLevel    = 0;
+    depthTextureViewDesc.mipLevelCount   = 1;
+    depthTextureViewDesc.dimension       = wgpu::TextureViewDimension::_2D;
+    depthTextureViewDesc.format          = depthTextureFormat;
+    data->depthTextureView               = data->depthTexture.createView(depthTextureViewDesc);
 
     shaderModule.release();
 }
@@ -469,6 +524,10 @@ wgpu::RequiredLimits Application::GetRequiredLimits(wgpu::Adapter adapter) const
     requiredLimits.limits.maxUniformBuffersPerShaderStage = 1;
     // Uniform structs have a size of maximum 16 float (more than what we need)
     requiredLimits.limits.maxUniformBufferBindingSize = 16 * 4;
+    // For the depth buffer, we enable textures (up to the size of the window):
+    requiredLimits.limits.maxTextureDimension1D = 480;
+    requiredLimits.limits.maxTextureDimension2D = 640;
+    requiredLimits.limits.maxTextureArrayLayers = 1;
 
     // These two limits are different because they are "minimum" limits,
     // they are the only ones we are may forward from the adapter's supported
