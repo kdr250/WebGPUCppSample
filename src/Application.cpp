@@ -78,6 +78,7 @@ public:
     wgpu::BindGroup bindGroup;
     wgpu::Texture depthTexture;
     wgpu::TextureView depthTextureView;
+    wgpu::Texture texture;
 
     MyUniforms uniforms;
 
@@ -181,6 +182,8 @@ bool Application::Initialize()
 
 void Application::Terminate()
 {
+    data->texture.destroy();
+    data->texture.release();
     data->depthTextureView.release();
     data->depthTexture.destroy();
     data->depthTexture.release();
@@ -457,6 +460,18 @@ void Application::InitializePipeline()
     depthTextureViewDesc.dimension       = wgpu::TextureViewDimension::_2D;
     depthTextureViewDesc.format          = depthTextureFormat;
     data->depthTextureView               = data->depthTexture.createView(depthTextureViewDesc);
+
+    // Create the color texture
+    wgpu::TextureDescriptor textureDesc;
+    textureDesc.dimension       = wgpu::TextureDimension::_2D;
+    textureDesc.size            = {256, 256, 1};
+    textureDesc.mipLevelCount   = 1;
+    textureDesc.sampleCount     = 1;
+    textureDesc.format          = wgpu::TextureFormat::RGBA8Unorm;
+    textureDesc.usage           = wgpu::TextureUsage::TextureBinding | wgpu::TextureUsage::CopyDst;
+    textureDesc.viewFormatCount = 0;
+    textureDesc.viewFormats     = nullptr;
+    data->texture               = data->device.createTexture(textureDesc);
 
     shaderModule.release();
 }
