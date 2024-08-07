@@ -28,8 +28,6 @@
 
 namespace fs = std::filesystem;
 
-constexpr float PI = 3.14159265358979323846f;
-
 /**
  * A structure that describes the data layout in the vertex buffer
  * We do not instantiate it but use it in `sizeof` and `offsetof`
@@ -79,6 +77,7 @@ public:
     wgpu::Texture depthTexture;
     wgpu::TextureView depthTextureView;
     wgpu::Texture texture;
+    wgpu::TextureView textureView;
 
     MyUniforms uniforms;
 
@@ -208,15 +207,6 @@ void Application::MainLoop()
                             offsetof(MyUniforms, time),
                             &data->uniforms.time,
                             sizeof(MyUniforms::time));
-
-    // Update view matrix
-    float angle                = data->uniforms.time;
-    glm::mat4x4 R1             = glm::rotate(glm::mat4x4(1.0), angle, glm::vec3(0.0, 0.0, 1.0));
-    data->uniforms.modelMatrix = R1 * data->T1 * data->S;
-    data->queue.writeBuffer(data->uniformBuffer,
-                            offsetof(MyUniforms, modelMatrix),
-                            &data->uniforms.modelMatrix,
-                            sizeof(MyUniforms::modelMatrix));
 
     // Get the next target texture view
     wgpu::TextureView targetView = GetNextSurfaceTextureView();
@@ -413,17 +403,24 @@ void Application::InitializePipeline()
     pipelineDesc.multisample.mask                   = ~0u;
     pipelineDesc.multisample.alphaToCoverageEnabled = false;
 
-    // Create binding layout
-    wgpu::BindGroupLayoutEntry bindingLayout = wgpu::Default;
-    bindingLayout.binding                    = 0;
-    bindingLayout.visibility                 = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
-    bindingLayout.buffer.type                = wgpu::BufferBindingType::Uniform;
-    bindingLayout.buffer.minBindingSize      = sizeof(MyUniforms);
+    // Create binding layout. Since we now have 2 bindings, we use a vector to store them
+    std::vector<wgpu::BindGroupLayoutEntry> bindingLayoutEntries(2, wgpu::Default);
+    wgpu::BindGroupLayoutEntry& bindingLayout = bindingLayoutEntries[0];  // The uniform buffer binding
+    bindingLayout.binding                     = 0;
+    bindingLayout.visibility                  = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
+    bindingLayout.buffer.type                 = wgpu::BufferBindingType::Uniform;
+    bindingLayout.buffer.minBindingSize       = sizeof(MyUniforms);
+
+    wgpu::BindGroupLayoutEntry& textureBindingLayout = bindingLayoutEntries[1];  // The texture binding
+    textureBindingLayout.binding                     = 1;
+    textureBindingLayout.visibility                  = wgpu::ShaderStage::Fragment;
+    textureBindingLayout.texture.sampleType          = wgpu::TextureSampleType::Float;
+    textureBindingLayout.texture.viewDimension       = wgpu::TextureViewDimension::_2D;
 
     // Create a bind group layout
     wgpu::BindGroupLayoutDescriptor bindGroupLayoutDesc;
-    bindGroupLayoutDesc.entryCount = 1;
-    bindGroupLayoutDesc.entries    = &bindingLayout;
+    bindGroupLayoutDesc.entryCount = (uint32_t)bindingLayoutEntries.size();
+    bindGroupLayoutDesc.entries    = bindingLayoutEntries.data();
     data->bindGroupLayoutDesc      = bindGroupLayoutDesc;
     data->bindGroupLayout          = data->device.createBindGroupLayout(data->bindGroupLayoutDesc);
 
@@ -472,6 +469,18 @@ void Application::InitializePipeline()
     textureDesc.viewFormatCount = 0;
     textureDesc.viewFormats     = nullptr;
     data->texture               = data->device.createTexture(textureDesc);
+    std::cout << "Texture: " << data->texture << std::endl;
+
+    wgpu::TextureViewDescriptor textureViewDesc;
+    textureViewDesc.aspect          = wgpu::TextureAspect::All;
+    textureViewDesc.baseArrayLayer  = 0;
+    textureViewDesc.arrayLayerCount = 1;
+    textureViewDesc.baseMipLevel    = 0;
+    textureViewDesc.mipLevelCount   = 1;
+    textureViewDesc.dimension       = wgpu::TextureViewDimension::_2D;
+    textureViewDesc.format          = textureDesc.format;
+    data->textureView               = data->texture.createView(textureViewDesc);
+    std::cout << "Texture view: " << data->textureView << std::endl;
 
     // Create image data
     std::vector<uint8_t> pixels(4 * textureDesc.size.width * textureDesc.size.height);
@@ -523,7 +532,7 @@ void Application::InitializeBuffers()
 {
     std::vector<VertexAttributes> vertexData;
 
-    bool success = loadGeometryFromObj("resources/shader/pyramid.obj", vertexData);
+    bool success = loadGeometryFromObj("resources/shader/plane.obj", vertexData);
     assert(success && "Could not load geometry!");
 
     // we will declare indexCount as a member of the Application class
@@ -549,17 +558,19 @@ void Application::InitializeBuffers()
     data->queue.writeBuffer(data->uniformBuffer, 0, &data->uniforms, sizeof(MyUniforms));
 
     // Create a binding
-    wgpu::BindGroupEntry binding;
-    binding.binding = 0;
-    binding.buffer  = data->uniformBuffer;
-    binding.offset  = 0;
-    binding.size    = sizeof(MyUniforms);
+    std::vector<wgpu::BindGroupEntry> bindings(2);
+    bindings[0].binding     = 0;
+    bindings[0].buffer      = data->uniformBuffer;
+    bindings[0].offset      = 0;
+    bindings[0].size        = sizeof(MyUniforms);
+    bindings[1].binding     = 1;
+    bindings[1].textureView = data->textureView;
 
     // A bind group contains one or multiple bindings
     wgpu::BindGroupDescriptor bindGroupDesc;
     bindGroupDesc.layout     = data->bindGroupLayout;
-    bindGroupDesc.entryCount = data->bindGroupLayoutDesc.entryCount;
-    bindGroupDesc.entries    = &binding;
+    bindGroupDesc.entryCount = (uint32_t)bindings.size();
+    bindGroupDesc.entries    = bindings.data();
     data->bindGroup          = data->device.createBindGroup(bindGroupDesc);
 }
 
@@ -590,6 +601,8 @@ wgpu::RequiredLimits Application::GetRequiredLimits(wgpu::Adapter adapter) const
     requiredLimits.limits.maxTextureDimension1D = 480;
     requiredLimits.limits.maxTextureDimension2D = 640;
     requiredLimits.limits.maxTextureArrayLayers = 1;
+    // Add the possibility to sample a texture in a shader
+    requiredLimits.limits.maxSampledTexturesPerShaderStage = 1;
 
     // These two limits are different because they are "minimum" limits,
     // they are the only ones we are may forward from the adapter's supported
@@ -687,103 +700,11 @@ MyUniforms Application::createUniforms()
 {
     MyUniforms uniforms;
 
-    // Translate the view
-    glm::vec3 focalPoint(0.0, 0.0, -1.0);
-    glm::mat4x4 T2 = glm::transpose(glm::mat4x4(1.0,
-                                                0.0,
-                                                0.0,
-                                                -focalPoint.x,
-                                                0.0,
-                                                1.0,
-                                                0.0,
-                                                -focalPoint.y,
-                                                0.0,
-                                                0.0,
-                                                1.0,
-                                                -focalPoint.z,
-                                                0.0,
-                                                0.0,
-                                                0.0,
-                                                1.0));
-
-    // Build transform matrices
-    // Option A: Manually define matrices
-    // Scale the object
-    glm::mat4x4 S =
-        glm::transpose(glm::mat4x4(0.3, 0.0, 0.0, 0.0, 0.0, 0.3, 0.0, 0.0, 0.0, 0.0, 0.3, 0.0, 0.0, 0.0, 0.0, 1.0));
-
-    // Translate the object
-    glm::mat4x4 T1 = glm::mat4x4(1.0);
-
-    // Rotate the object
-    float angle1 = 2.0f;  // arbitrary time
-    float c1     = glm::cos(angle1);
-    float s1     = glm::sin(angle1);
-    glm::mat4x4 R1 =
-        glm::transpose(glm::mat4x4(c1, s1, 0.0, 0.0, -s1, c1, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0));
-
-    // Rotate the view point
-    float angle2 = 3.0f * PI / 4.0f;
-    float c2     = glm::cos(angle2);
-    float s2     = glm::sin(angle2);
-    glm::mat4x4 R2 =
-        glm::transpose(glm::mat4x4(1.0, 0.0, 0.0, 0.0, 0.0, c2, s2, 0.0, 0.0, -s2, c2, 0.0, 0.0, 0.0, 0.0, 1.0));
-
-    uniforms.modelMatrix = R1 * T1 * S;
-    uniforms.viewMatrix  = T2 * R2;
-
-    float ratio               = 640.0f / 480.0f;
-    float focalLength         = 2.0;
-    float near                = 0.01f;
-    float far                 = 100.0f;
-    float divider             = 1 / (focalLength * (far - near));
-    uniforms.projectionMatrix = glm::transpose(glm::mat4x4(1.0,
-                                                           0.0,
-                                                           0.0,
-                                                           0.0,
-                                                           0.0,
-                                                           ratio,
-                                                           0.0,
-                                                           0.0,
-                                                           0.0,
-                                                           0.0,
-                                                           far * divider,
-                                                           -far * near * divider,
-                                                           0.0,
-                                                           0.0,
-                                                           1.0 / focalLength,
-                                                           0.0));
-
-    // Option B: Use GLM extensions
-    S                    = glm::scale(glm::mat4x4(1.0), glm::vec3(0.3f));
-    T1                   = glm::translate(glm::mat4x4(1.0), glm::vec3(0.5, 0.0, 0.0));
-    R1                   = glm::rotate(glm::mat4x4(1.0), angle1, glm::vec3(0.0, 0.0, 1.0));
-    uniforms.modelMatrix = R1 * T1 * S;
-
-    R2                  = glm::rotate(glm::mat4x4(1.0), -angle2, glm::vec3(1.0, 0.0, 0.0));
-    T2                  = glm::translate(glm::mat4x4(1.0), -focalPoint);
-    uniforms.viewMatrix = T2 * R2;
-
-    // Option C: A different way of using GLM extensions
-    glm::mat4x4 M(1.0);
-    M                    = glm::rotate(M, angle1, glm::vec3(0.0, 0.0, 1.0));
-    M                    = glm::translate(M, glm::vec3(0.5, 0.0, 0.0));
-    M                    = glm::scale(M, glm::vec3(0.3f));
-    uniforms.modelMatrix = M;
-
-    glm::mat4x4 V(1.0);
-    V                   = glm::translate(V, -focalPoint);
-    V                   = glm::rotate(V, -angle2, glm::vec3(1.0, 0.0, 0.0));
-    uniforms.viewMatrix = V;
-
-    float fov                 = 2 * glm::atan(1 / focalLength);
-    uniforms.projectionMatrix = glm::perspective(fov, ratio, near, far);
-
-    uniforms.time  = 1.0f;
-    uniforms.color = {0.0f, 1.0f, 0.4f, 1.0f};
-
-    data->S  = S;
-    data->T1 = T1;
+    uniforms.modelMatrix      = glm::mat4x4(1.0);
+    uniforms.viewMatrix       = glm::scale(glm::mat4x4(1.0), glm::vec3(1.0f));
+    uniforms.projectionMatrix = glm::ortho(-1, 1, -1, 1, -1, 1);
+    uniforms.time             = 1.0f;
+    uniforms.color            = {0.0f, 1.0f, 0.4f, 1.0f};
 
     return uniforms;
 }
