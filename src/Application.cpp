@@ -153,7 +153,7 @@ bool Application::Initialize()
     config.height = 480;
     config.usage  = wgpu::TextureUsage::RenderAttachment;
 #ifdef WEBGPU_BACKEND_WGPU
-    data->surfaceFormat = surface.getPreferredFormat(adapter);
+    data->surfaceFormat = data->surface.getPreferredFormat(adapter);
 #else
     data->surfaceFormat = wgpu::TextureFormat::BGRA8Unorm;
 #endif
@@ -293,7 +293,7 @@ void Application::MainLoop()
 #if defined(WEBGPU_BACKEND_DAWN)
     data->device.tick();
 #elif defined(WEBGPU_BACKEND_WGPU)
-    device->poll(false);
+    data->device.poll(false);
 #endif
 }
 
