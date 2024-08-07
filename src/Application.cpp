@@ -473,6 +473,34 @@ void Application::InitializePipeline()
     textureDesc.viewFormats     = nullptr;
     data->texture               = data->device.createTexture(textureDesc);
 
+    // Create image data
+    std::vector<uint8_t> pixels(4 * textureDesc.size.width * textureDesc.size.height);
+    for (uint32_t i = 0; i < textureDesc.size.width; ++i)
+    {
+        for (uint32_t j = 0; j < textureDesc.size.height; ++j)
+        {
+            uint8_t* p = &pixels[4 * (j * textureDesc.size.width + i)];
+            p[0]       = (uint8_t)i;  // r
+            p[1]       = (uint8_t)j;  // g
+            p[2]       = 128;         // b
+            p[3]       = 255;         // a
+        }
+    }
+
+    // Upload texture data
+    wgpu::ImageCopyTexture destination;
+    destination.texture  = data->texture;
+    destination.mipLevel = 0;
+    destination.origin   = {0, 0, 0};                 // equivalent of the offset argument of Queue::writeBuffer
+    destination.aspect   = wgpu::TextureAspect::All;  // only relevant for depth/Stencil textures
+
+    wgpu::TextureDataLayout source;
+    source.offset       = 0;
+    source.bytesPerRow  = 4 * textureDesc.size.width;
+    source.rowsPerImage = textureDesc.size.height;
+
+    data->queue.writeTexture(destination, pixels.data(), pixels.size(), source, textureDesc.size);
+
     shaderModule.release();
 }
 
