@@ -1,42 +1,106 @@
 #pragma once
 
-namespace wgpu
-{
-    class Adapter;
-    class TextureView;
-    struct RequiredLimits;
-}  // namespace wgpu
+#include <glm/glm.hpp>
+#include <webgpu/webgpu.hpp>
+
+// Forward declare
+struct GLFWwindow;
 
 class Application
 {
 public:
-    Application();
-    ~Application();
+    // A function called only once at the beginning. Returns false is init failed.
+    bool onInit();
 
-    // Initialize everything and return true if it went all right
-    bool Initialize();
+    // A function called at each frame, guaranteed never to be called before `onInit`.
+    void onFrame();
 
-    // Uninitialize everything that was initialized
-    void Terminate();
+    // A function called only once at the very end.
+    void onFinish();
 
-    // Draw a frame and handle events
-    void MainLoop();
-
-    // Return true as long as the main loop should keep on running
-    bool IsRunning();
+    // A function that tells if the application is still running.
+    bool isRunning();
 
 private:
-    struct AppData;
+    bool initWindowAndDevice();
+    void terminateWindowAndDevice();
 
-    AppData* data;
+    bool initSwapChain();
 
-    wgpu::TextureView GetNextSurfaceTextureView();
+    bool initDepthBuffer();
+    void terminateDepthBuffer();
 
-    void InitializePipeline();
+    bool initRenderPipeline();
+    void terminateRenderPipeline();
 
-    void InitializeBuffers();
+    bool initTexture();
+    void terminateTexture();
 
-    wgpu::RequiredLimits GetRequiredLimits(wgpu::Adapter adapter) const;
+    bool initGeometry();
+    void terminateGeometry();
 
-    struct MyUniforms createUniforms();
+    bool initUniforms();
+    void terminateUniforms();
+
+    bool initBindGroup();
+    void terminateBindGroup();
+
+private:
+    // (Just aliases to make notations lighter)
+    using mat4x4 = glm::mat4x4;
+    using vec4   = glm::vec4;
+    using vec3   = glm::vec3;
+    using vec2   = glm::vec2;
+
+    /**
+	 * The same structure as in the shader, replicated in C++
+	 */
+    struct MyUniforms
+    {
+        // We add transform matrices
+        mat4x4 projectionMatrix;
+        mat4x4 viewMatrix;
+        mat4x4 modelMatrix;
+        vec4 color;
+        float time;
+        float _pad[3];
+    };
+    // Have the compiler check byte alignment
+    static_assert(sizeof(MyUniforms) % 16 == 0);
+
+    // Window and Device
+    GLFWwindow* m_window                  = nullptr;
+    wgpu::Instance m_instance             = nullptr;
+    wgpu::Surface m_surface               = nullptr;
+    wgpu::Device m_device                 = nullptr;
+    wgpu::Queue m_queue                   = nullptr;
+    wgpu::TextureFormat m_swapChainFormat = wgpu::TextureFormat::Undefined;
+    // Keep the error callback alive
+    std::unique_ptr<wgpu::ErrorCallback> m_errorCallbackHandle;
+
+    // Depth Buffer
+    wgpu::TextureFormat m_depthTextureFormat = wgpu::TextureFormat::Depth24Plus;
+    wgpu::Texture m_depthTexture             = nullptr;
+    wgpu::TextureView m_depthTextureView     = nullptr;
+
+    // Render Pipeline
+    wgpu::BindGroupLayout m_bindGroupLayout = nullptr;
+    wgpu::ShaderModule m_shaderModule       = nullptr;
+    wgpu::RenderPipeline m_pipeline         = nullptr;
+
+    // Texture
+    wgpu::Sampler m_sampler         = nullptr;
+    wgpu::Texture m_texture         = nullptr;
+    wgpu::TextureView m_textureView = nullptr;
+
+    // Geometry
+    wgpu::Buffer m_vertexBuffer = nullptr;
+    int m_vertexCount           = 0;
+
+    // Uniforms
+    wgpu::Buffer m_uniformBuffer = nullptr;
+    MyUniforms m_uniforms;
+
+    // Bind Group
+    wgpu::BindGroup m_bindGroup = nullptr;
 };
