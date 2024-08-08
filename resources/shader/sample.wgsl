@@ -70,9 +70,8 @@ fn vs_main(in: VertexInput) -> VertexOutput
 	// Forward the normal
 	out.normal = (uMyUniforms.modelMatrix * vec4f(in.normal, 0.0)).xyz;
 	out.color = in.color;
-	// In plane.obj, the vertex xy coords range from -1 to 1
-    // and we remap this to (0, 256), the size of our texture.
-	out.uv = in.uv * 2.0 - 0.5;
+	// Repeat the texture 6 times along each axis
+	out.uv = in.uv * 6.0;
 	return out;
 }
 

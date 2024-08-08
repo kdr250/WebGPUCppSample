@@ -24,6 +24,7 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -211,6 +212,15 @@ void Application::MainLoop()
                             offsetof(MyUniforms, time),
                             &data->uniforms.time,
                             sizeof(MyUniforms::time));
+
+    // Update view
+    float viewZ = glm::mix(0.0f, 0.25f, glm::cos(2 * PI * data->uniforms.time / 4) * 0.5 + 0.5);
+    data->uniforms.viewMatrix =
+        glm::lookAt(glm::vec3(-0.5f, -1.5f, viewZ + 0.25f), glm::vec3(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    data->queue.writeBuffer(data->uniformBuffer,
+                            offsetof(MyUniforms, viewMatrix),
+                            &data->uniforms.viewMatrix,
+                            sizeof(MyUniforms::viewMatrix));
 
     // Get the next target texture view
     wgpu::TextureView targetView = GetNextSurfaceTextureView();
@@ -476,7 +486,7 @@ void Application::InitializePipeline()
     wgpu::TextureDescriptor textureDesc;
     textureDesc.dimension       = wgpu::TextureDimension::_2D;
     textureDesc.size            = {256, 256, 1};
-    textureDesc.mipLevelCount   = 1;
+    textureDesc.mipLevelCount   = 8;
     textureDesc.sampleCount     = 1;
     textureDesc.format          = wgpu::TextureFormat::RGBA8Unorm;
     textureDesc.usage           = wgpu::TextureUsage::TextureBinding | wgpu::TextureUsage::CopyDst;
@@ -490,7 +500,7 @@ void Application::InitializePipeline()
     textureViewDesc.baseArrayLayer  = 0;
     textureViewDesc.arrayLayerCount = 1;
     textureViewDesc.baseMipLevel    = 0;
-    textureViewDesc.mipLevelCount   = 1;
+    textureViewDesc.mipLevelCount   = textureDesc.mipLevelCount;
     textureViewDesc.dimension       = wgpu::TextureViewDimension::_2D;
     textureViewDesc.format          = textureDesc.format;
     data->textureView               = data->texture.createView(textureViewDesc);
@@ -498,47 +508,72 @@ void Application::InitializePipeline()
 
     // Create a sampler
     wgpu::SamplerDescriptor samplerDesc;
-    //samplerDesc.addressModeU  = wgpu::AddressMode::ClampToEdge;
-    samplerDesc.addressModeU = wgpu::AddressMode::Repeat;
-    //samplerDesc.addressModeV  = wgpu::AddressMode::ClampToEdge;
-    samplerDesc.addressModeV  = wgpu::AddressMode::MirrorRepeat;
-    samplerDesc.addressModeW  = wgpu::AddressMode::ClampToEdge;
+    samplerDesc.addressModeU  = wgpu::AddressMode::Repeat;
+    samplerDesc.addressModeV  = wgpu::AddressMode::Repeat;
+    samplerDesc.addressModeW  = wgpu::AddressMode::Repeat;
     samplerDesc.magFilter     = wgpu::FilterMode::Linear;
     samplerDesc.minFilter     = wgpu::FilterMode::Linear;
     samplerDesc.mipmapFilter  = wgpu::MipmapFilterMode::Linear;
     samplerDesc.lodMinClamp   = 0.0f;
-    samplerDesc.lodMaxClamp   = 1.0f;
+    samplerDesc.lodMaxClamp   = 8.0f;
     samplerDesc.compare       = wgpu::CompareFunction::Undefined;
     samplerDesc.maxAnisotropy = 1;
     data->sampler             = data->device.createSampler(samplerDesc);
 
-    // Create image data
-    std::vector<uint8_t> pixels(4 * textureDesc.size.width * textureDesc.size.height);
-    for (uint32_t i = 0; i < textureDesc.size.width; ++i)
-    {
-        for (uint32_t j = 0; j < textureDesc.size.height; ++j)
-        {
-            uint8_t* p = &pixels[4 * (j * textureDesc.size.width + i)];
-            p[0]       = (i / 16) % 2 == (j / 16) % 2 ? 255 : 0;  // r
-            p[1]       = ((i - j) / 16) % 2 == 0 ? 255 : 0;       // g
-            p[2]       = ((i + j) / 16) % 2 == 0 ? 255 : 0;       // b
-            p[3]       = 255;                                     // a
-        }
-    }
-
     // Upload texture data
     wgpu::ImageCopyTexture destination;
-    destination.texture  = data->texture;
-    destination.mipLevel = 0;
-    destination.origin   = {0, 0, 0};                 // equivalent of the offset argument of Queue::writeBuffer
-    destination.aspect   = wgpu::TextureAspect::All;  // only relevant for depth/Stencil textures
+    destination.texture = data->texture;
+    destination.origin  = {0, 0, 0};                 // equivalent of the offset argument of Queue::writeBuffer
+    destination.aspect  = wgpu::TextureAspect::All;  // only relevant for depth/Stencil textures
 
     wgpu::TextureDataLayout source;
-    source.offset       = 0;
-    source.bytesPerRow  = 4 * textureDesc.size.width;
-    source.rowsPerImage = textureDesc.size.height;
+    source.offset = 0;
 
-    data->queue.writeTexture(destination, pixels.data(), pixels.size(), source, textureDesc.size);
+    wgpu::Extent3D mipLevelSize = textureDesc.size;
+    std::vector<uint8_t> previousLevelPixels;
+    for (uint32_t level = 0; level < textureDesc.mipLevelCount; ++level)
+    {
+        std::vector<uint8_t> pixels(4 * mipLevelSize.width * mipLevelSize.height);
+        for (uint32_t i = 0; i < mipLevelSize.width; ++i)
+        {
+            for (uint32_t j = 0; j < mipLevelSize.height; ++j)
+            {
+                uint8_t* p = &pixels[4 * (j * mipLevelSize.width + i)];
+                if (level == 0)
+                {
+                    // Our initial texture formula
+                    p[0] = (i / 16) % 2 == (j / 16) % 2 ? 255 : 0;  // r
+                    p[1] = ((i - j) / 16) % 2 == 0 ? 255 : 0;       // g
+                    p[2] = ((i + j) / 16) % 2 == 0 ? 255 : 0;       // b
+                }
+                else
+                {
+                    // Get the corresponding 4 pixels from the previous level
+                    uint8_t* p00 = &previousLevelPixels[4 * ((2 * j + 0) * (2 * mipLevelSize.width) + (2 * i + 0))];
+                    uint8_t* p01 = &previousLevelPixels[4 * ((2 * j + 0) * (2 * mipLevelSize.width) + (2 * i + 1))];
+                    uint8_t* p10 = &previousLevelPixels[4 * ((2 * j + 1) * (2 * mipLevelSize.width) + (2 * i + 0))];
+                    uint8_t* p11 = &previousLevelPixels[4 * ((2 * j + 1) * (2 * mipLevelSize.width) + (2 * i + 1))];
+                    // Average
+                    p[0] = (p00[0] + p01[0] + p10[0] + p11[0]) / 4;
+                    p[1] = (p00[1] + p01[1] + p10[1] + p11[1]) / 4;
+                    p[2] = (p00[2] + p01[2] + p10[2] + p11[2]) / 4;
+                }
+                p[3] = 255;  // a
+            }
+        }
+
+        destination.mipLevel = level;
+
+        source.bytesPerRow  = 4 * mipLevelSize.width;
+        source.rowsPerImage = mipLevelSize.height;
+
+        data->queue.writeTexture(destination, pixels.data(), pixels.size(), source, mipLevelSize);
+
+        mipLevelSize.width /= 2;
+        mipLevelSize.height /= 2;
+
+        previousLevelPixels = std::move(pixels);
+    }
 
     shaderModule.release();
 }
