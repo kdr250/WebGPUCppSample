@@ -19,6 +19,7 @@ struct VertexOutput
     @builtin(position) position: vec4f,
     @location(0) color: vec3f,
 	@location(1) normal: vec3f,
+	@location(2) texelCoords: vec2f,
 };
 
 /**
@@ -67,12 +68,15 @@ fn vs_main(in: VertexInput) -> VertexOutput
 	// Forward the normal
 	out.normal = (uMyUniforms.modelMatrix * vec4f(in.normal, 0.0)).xyz;
 	out.color = in.color;
+	// In plane.obj, the vertex xy coords range from -1 to 1
+    // and we remap this to (0, 256), the size of our texture.
+	out.texelCoords = (in.position.xy + 1.0) * 128.0;
 	return out;
 }
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4f
 {
-	let color = textureLoad(gradientTexture, vec2<i32>(in.position.xy), 0).rgb;
+	let color = textureLoad(gradientTexture, vec2i(in.texelCoords), 0).rgb;
     return vec4f(color, uMyUniforms.color.a);
 }

@@ -28,6 +28,8 @@
 
 namespace fs = std::filesystem;
 
+constexpr float PI = 3.14159265358979323846f;
+
 /**
  * A structure that describes the data layout in the vertex buffer
  * We do not instantiate it but use it in `sizeof` and `offsetof`
@@ -489,10 +491,10 @@ void Application::InitializePipeline()
         for (uint32_t j = 0; j < textureDesc.size.height; ++j)
         {
             uint8_t* p = &pixels[4 * (j * textureDesc.size.width + i)];
-            p[0]       = (uint8_t)i;  // r
-            p[1]       = (uint8_t)j;  // g
-            p[2]       = 128;         // b
-            p[3]       = 255;         // a
+            p[0]       = (i / 16) % 2 == (j / 16) % 2 ? 255 : 0;  // r
+            p[1]       = ((i - j) / 16) % 2 == 0 ? 255 : 0;       // g
+            p[2]       = ((i + j) / 16) % 2 == 0 ? 255 : 0;       // b
+            p[3]       = 255;                                     // a
         }
     }
 
@@ -590,7 +592,7 @@ wgpu::RequiredLimits Application::GetRequiredLimits(wgpu::Adapter adapter) const
     // Maximum stride between 2 consecutive vertices in the vertex buffer
     requiredLimits.limits.maxVertexBufferArrayStride = sizeof(VertexAttributes);
     // There is a maximum of 3 float forwarded from vertex to fragment shader
-    requiredLimits.limits.maxInterStageShaderComponents = 6;
+    requiredLimits.limits.maxInterStageShaderComponents = 8;
     // We use at most 1 bind group for now
     requiredLimits.limits.maxBindGroups = 1;
     // We use at most 1 uniform buffer per stage
@@ -701,8 +703,10 @@ MyUniforms Application::createUniforms()
     MyUniforms uniforms;
 
     uniforms.modelMatrix      = glm::mat4x4(1.0);
-    uniforms.viewMatrix       = glm::scale(glm::mat4x4(1.0), glm::vec3(1.0f));
-    uniforms.projectionMatrix = glm::ortho(-1, 1, -1, 1, -1, 1);
+    uniforms.viewMatrix       = glm::lookAt(glm::vec3(-0.5f, -2.5f, 2.0f),
+                                      glm::vec3(0.0f),
+                                      glm::vec3(0, 0, 1));  // the last argument indicates our Up direction convention
+    uniforms.projectionMatrix = glm::perspective(45 * PI / 180, 640.0f / 480.0f, 0.01f, 100.0f);
     uniforms.time             = 1.0f;
     uniforms.color            = {0.0f, 1.0f, 0.4f, 1.0f};
 
