@@ -70,8 +70,7 @@ fn vs_main(in: VertexInput) -> VertexOutput
 	// Forward the normal
 	out.normal = (uMyUniforms.modelMatrix * vec4f(in.normal, 0.0)).xyz;
 	out.color = in.color;
-	// Repeat the texture 6 times along each axis
-	out.uv = in.uv * 6.0;
+	out.uv = in.uv;
 	return out;
 }
 
