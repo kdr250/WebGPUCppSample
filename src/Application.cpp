@@ -498,8 +498,10 @@ void Application::InitializePipeline()
 
     // Create a sampler
     wgpu::SamplerDescriptor samplerDesc;
-    samplerDesc.addressModeU  = wgpu::AddressMode::ClampToEdge;
-    samplerDesc.addressModeV  = wgpu::AddressMode::ClampToEdge;
+    //samplerDesc.addressModeU  = wgpu::AddressMode::ClampToEdge;
+    samplerDesc.addressModeU = wgpu::AddressMode::Repeat;
+    //samplerDesc.addressModeV  = wgpu::AddressMode::ClampToEdge;
+    samplerDesc.addressModeV  = wgpu::AddressMode::MirrorRepeat;
     samplerDesc.addressModeW  = wgpu::AddressMode::ClampToEdge;
     samplerDesc.magFilter     = wgpu::FilterMode::Linear;
     samplerDesc.minFilter     = wgpu::FilterMode::Linear;
@@ -560,7 +562,7 @@ void Application::InitializeBuffers()
 {
     std::vector<VertexAttributes> vertexData;
 
-    bool success = loadGeometryFromObj("resources/shader/cube.obj", vertexData);
+    bool success = loadGeometryFromObj("resources/shader/plane.obj", vertexData);
     assert(success && "Could not load geometry!");
 
     // we will declare indexCount as a member of the Application class

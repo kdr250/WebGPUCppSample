@@ -72,7 +72,7 @@ fn vs_main(in: VertexInput) -> VertexOutput
 	out.color = in.color;
 	// In plane.obj, the vertex xy coords range from -1 to 1
     // and we remap this to (0, 256), the size of our texture.
-	out.uv = in.uv;
+	out.uv = in.uv * 2.0 - 0.5;
 	return out;
 }
 
