@@ -793,5 +793,48 @@ MyUniforms Application::createUniforms()
 
 wgpu::Texture loadTexture(const fs::path& path, wgpu::Device device)
 {
-    // TODO
+    int width, height, channels;
+    unsigned char* pixelData = stbi_load(path.string().c_str(), &width, &height, &channels, 4);
+    if (pixelData == nullptr)
+        return nullptr;
+
+    wgpu::TextureDescriptor textureDesc;
+    textureDesc.dimension       = wgpu::TextureDimension::_2D;
+    textureDesc.format          = wgpu::TextureFormat::RGBA8Unorm;  // by convention for bmp, png and jpg file
+    textureDesc.mipLevelCount   = 1;
+    textureDesc.sampleCount     = 1;
+    textureDesc.size            = {(unsigned int)width, (unsigned int)height, 1};
+    textureDesc.usage           = wgpu::TextureUsage::TextureBinding | wgpu::TextureUsage::CopyDst;
+    textureDesc.viewFormatCount = 0;
+    textureDesc.viewFormats     = nullptr;
+    wgpu::Texture texture       = device.createTexture(textureDesc);
+
+    writeMipMaps(device, texture, textureDesc.size, textureDesc.mipLevelCount, pixelData);
+
+    stbi_image_free(pixelData);
+
+    return texture;
+}
+
+// Auxiliary function for loadTexture
+static void writeMipMaps(wgpu::Device device,
+                         wgpu::Texture texture,
+                         wgpu::Extent3D textureSize,
+                         [[maybe_unused]] uint32_t mipLevelCount,  // not used yet
+                         const unsigned char* pixelData)
+{
+    wgpu::ImageCopyTexture destination;
+    destination.texture  = texture;
+    destination.mipLevel = 0;
+    destination.origin   = {0, 0, 0};
+    destination.aspect   = wgpu::TextureAspect::All;
+
+    wgpu::TextureDataLayout source;
+    source.offset       = 0;
+    source.bytesPerRow  = 4 * textureSize.width;
+    source.rowsPerImage = textureSize.height;
+
+    wgpu::Queue queue = device.getQueue();
+    queue.writeTexture(destination, pixelData, 4 * textureSize.width * textureSize.height, source, textureSize);
+    queue.release();
 }
