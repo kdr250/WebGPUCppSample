@@ -220,15 +220,6 @@ void Application::MainLoop()
                             &data->uniforms.time,
                             sizeof(MyUniforms::time));
 
-    // Update view
-    float viewZ = glm::mix(0.0f, 0.25f, glm::cos(2 * PI * data->uniforms.time / 4) * 0.5 + 0.5);
-    data->uniforms.viewMatrix =
-        glm::lookAt(glm::vec3(-0.5f, -1.5f, viewZ + 0.25f), glm::vec3(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-    data->queue.writeBuffer(data->uniformBuffer,
-                            offsetof(MyUniforms, viewMatrix),
-                            &data->uniforms.viewMatrix,
-                            sizeof(MyUniforms::viewMatrix));
-
     // Get the next target texture view
     wgpu::TextureView targetView = GetNextSurfaceTextureView();
     if (!targetView)
@@ -491,7 +482,7 @@ void Application::InitializePipeline()
 
     // Create a texture
     wgpu::TextureView textureView = nullptr;
-    wgpu::Texture texture         = loadTexture("resources/shader/texture.jpg", data->device, &textureView);
+    wgpu::Texture texture         = loadTexture("resources/shader/fourareen2K_albedo.jpg", data->device, &textureView);
     if (!texture)
     {
         std::cerr << "Could not load texture!" << std::endl;
@@ -535,7 +526,7 @@ void Application::InitializeBuffers()
 {
     std::vector<VertexAttributes> vertexData;
 
-    bool success = loadGeometryFromObj("resources/shader/plane.obj", vertexData);
+    bool success = loadGeometryFromObj("resources/shader/fourareen.obj", vertexData);
     assert(success && "Could not load geometry!");
 
     // we will declare indexCount as a member of the Application class
@@ -591,7 +582,7 @@ wgpu::RequiredLimits Application::GetRequiredLimits(wgpu::Adapter adapter) const
     // We should also tell that we use 1 vertex buffers
     requiredLimits.limits.maxVertexBuffers = 1;
     // Maximum size of a buffer is 6 vertices of 2 float each
-    requiredLimits.limits.maxBufferSize = 10000 * sizeof(VertexAttributes);
+    requiredLimits.limits.maxBufferSize = 150000 * sizeof(VertexAttributes);
     // Maximum stride between 2 consecutive vertices in the vertex buffer
     requiredLimits.limits.maxVertexBufferArrayStride = sizeof(VertexAttributes);
     // There is a maximum of 3 float forwarded from vertex to fragment shader
