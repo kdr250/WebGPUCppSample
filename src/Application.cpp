@@ -63,7 +63,7 @@ static_assert(sizeof(MyUniforms) % 16 == 0);
 
 wgpu::ShaderModule loadShaderModule(const fs::path& path, wgpu::Device device);
 bool loadGeometryFromObj(const fs::path& path, std::vector<VertexAttributes>& vertexData);
-wgpu::Texture loadTexture(const fs::path& path, wgpu::Device device);
+wgpu::Texture loadTexture(const fs::path& path, wgpu::Device device, wgpu::TextureView* pTextureView = nullptr);
 
 struct Application::AppData
 {
@@ -489,29 +489,14 @@ void Application::InitializePipeline()
     depthTextureViewDesc.format          = depthTextureFormat;
     data->depthTextureView               = data->depthTexture.createView(depthTextureViewDesc);
 
-    // Create the color texture
-    wgpu::TextureDescriptor textureDesc;
-    textureDesc.dimension       = wgpu::TextureDimension::_2D;
-    textureDesc.size            = {256, 256, 1};
-    textureDesc.mipLevelCount   = 8;
-    textureDesc.sampleCount     = 1;
-    textureDesc.format          = wgpu::TextureFormat::RGBA8Unorm;
-    textureDesc.usage           = wgpu::TextureUsage::TextureBinding | wgpu::TextureUsage::CopyDst;
-    textureDesc.viewFormatCount = 0;
-    textureDesc.viewFormats     = nullptr;
-    data->texture               = data->device.createTexture(textureDesc);
-    std::cout << "Texture: " << data->texture << std::endl;
-
-    wgpu::TextureViewDescriptor textureViewDesc;
-    textureViewDesc.aspect          = wgpu::TextureAspect::All;
-    textureViewDesc.baseArrayLayer  = 0;
-    textureViewDesc.arrayLayerCount = 1;
-    textureViewDesc.baseMipLevel    = 0;
-    textureViewDesc.mipLevelCount   = textureDesc.mipLevelCount;
-    textureViewDesc.dimension       = wgpu::TextureViewDimension::_2D;
-    textureViewDesc.format          = textureDesc.format;
-    data->textureView               = data->texture.createView(textureViewDesc);
-    std::cout << "Texture view: " << data->textureView << std::endl;
+    // Create a texture
+    wgpu::TextureView textureView = nullptr;
+    wgpu::Texture texture         = loadTexture("resources/shader/texture.jpg", data->device, &textureView);
+    if (!texture)
+    {
+        std::cerr << "Could not load texture!" << std::endl;
+        assert(texture != nullptr);
+    }
 
     // Create a sampler
     wgpu::SamplerDescriptor samplerDesc;
@@ -526,61 +511,6 @@ void Application::InitializePipeline()
     samplerDesc.compare       = wgpu::CompareFunction::Undefined;
     samplerDesc.maxAnisotropy = 1;
     data->sampler             = data->device.createSampler(samplerDesc);
-
-    // Upload texture data
-    wgpu::ImageCopyTexture destination;
-    destination.texture = data->texture;
-    destination.origin  = {0, 0, 0};                 // equivalent of the offset argument of Queue::writeBuffer
-    destination.aspect  = wgpu::TextureAspect::All;  // only relevant for depth/Stencil textures
-
-    wgpu::TextureDataLayout source;
-    source.offset = 0;
-
-    wgpu::Extent3D mipLevelSize = textureDesc.size;
-    std::vector<uint8_t> previousLevelPixels;
-    for (uint32_t level = 0; level < textureDesc.mipLevelCount; ++level)
-    {
-        std::vector<uint8_t> pixels(4 * mipLevelSize.width * mipLevelSize.height);
-        for (uint32_t i = 0; i < mipLevelSize.width; ++i)
-        {
-            for (uint32_t j = 0; j < mipLevelSize.height; ++j)
-            {
-                uint8_t* p = &pixels[4 * (j * mipLevelSize.width + i)];
-                if (level == 0)
-                {
-                    // Our initial texture formula
-                    p[0] = (i / 16) % 2 == (j / 16) % 2 ? 255 : 0;  // r
-                    p[1] = ((i - j) / 16) % 2 == 0 ? 255 : 0;       // g
-                    p[2] = ((i + j) / 16) % 2 == 0 ? 255 : 0;       // b
-                }
-                else
-                {
-                    // Get the corresponding 4 pixels from the previous level
-                    uint8_t* p00 = &previousLevelPixels[4 * ((2 * j + 0) * (2 * mipLevelSize.width) + (2 * i + 0))];
-                    uint8_t* p01 = &previousLevelPixels[4 * ((2 * j + 0) * (2 * mipLevelSize.width) + (2 * i + 1))];
-                    uint8_t* p10 = &previousLevelPixels[4 * ((2 * j + 1) * (2 * mipLevelSize.width) + (2 * i + 0))];
-                    uint8_t* p11 = &previousLevelPixels[4 * ((2 * j + 1) * (2 * mipLevelSize.width) + (2 * i + 1))];
-                    // Average
-                    p[0] = (p00[0] + p01[0] + p10[0] + p11[0]) / 4;
-                    p[1] = (p00[1] + p01[1] + p10[1] + p11[1]) / 4;
-                    p[2] = (p00[2] + p01[2] + p10[2] + p11[2]) / 4;
-                }
-                p[3] = 255;  // a
-            }
-        }
-
-        destination.mipLevel = level;
-
-        source.bytesPerRow  = 4 * mipLevelSize.width;
-        source.rowsPerImage = mipLevelSize.height;
-
-        data->queue.writeTexture(destination, pixels.data(), pixels.size(), source, mipLevelSize);
-
-        mipLevelSize.width /= 2;
-        mipLevelSize.height /= 2;
-
-        previousLevelPixels = std::move(pixels);
-    }
 
     shaderModule.release();
 }
@@ -672,8 +602,8 @@ wgpu::RequiredLimits Application::GetRequiredLimits(wgpu::Adapter adapter) const
     // Uniform structs have a size of maximum 16 float (more than what we need)
     requiredLimits.limits.maxUniformBufferBindingSize = 16 * 4 * sizeof(float);
     // For the depth buffer, we enable textures (up to the size of the window):
-    requiredLimits.limits.maxTextureDimension1D = 480;
-    requiredLimits.limits.maxTextureDimension2D = 640;
+    requiredLimits.limits.maxTextureDimension1D = 2048;
+    requiredLimits.limits.maxTextureDimension2D = 2048;
     requiredLimits.limits.maxTextureArrayLayers = 1;
     // Add the possibility to sample a texture in a shader
     requiredLimits.limits.maxSampledTexturesPerShaderStage = 1;
@@ -791,31 +721,6 @@ MyUniforms Application::createUniforms()
     return uniforms;
 }
 
-wgpu::Texture loadTexture(const fs::path& path, wgpu::Device device)
-{
-    int width, height, channels;
-    unsigned char* pixelData = stbi_load(path.string().c_str(), &width, &height, &channels, 4);
-    if (pixelData == nullptr)
-        return nullptr;
-
-    wgpu::TextureDescriptor textureDesc;
-    textureDesc.dimension       = wgpu::TextureDimension::_2D;
-    textureDesc.format          = wgpu::TextureFormat::RGBA8Unorm;  // by convention for bmp, png and jpg file
-    textureDesc.mipLevelCount   = 1;
-    textureDesc.sampleCount     = 1;
-    textureDesc.size            = {(unsigned int)width, (unsigned int)height, 1};
-    textureDesc.usage           = wgpu::TextureUsage::TextureBinding | wgpu::TextureUsage::CopyDst;
-    textureDesc.viewFormatCount = 0;
-    textureDesc.viewFormats     = nullptr;
-    wgpu::Texture texture       = device.createTexture(textureDesc);
-
-    writeMipMaps(device, texture, textureDesc.size, textureDesc.mipLevelCount, pixelData);
-
-    stbi_image_free(pixelData);
-
-    return texture;
-}
-
 // Auxiliary function for loadTexture
 static void writeMipMaps(wgpu::Device device,
                          wgpu::Texture texture,
@@ -837,4 +742,42 @@ static void writeMipMaps(wgpu::Device device,
     wgpu::Queue queue = device.getQueue();
     queue.writeTexture(destination, pixelData, 4 * textureSize.width * textureSize.height, source, textureSize);
     queue.release();
+}
+
+wgpu::Texture loadTexture(const fs::path& path, wgpu::Device device, wgpu::TextureView* pTextureView)
+{
+    int width, height, channels;
+    unsigned char* pixelData = stbi_load(path.string().c_str(), &width, &height, &channels, 4);
+    if (pixelData == nullptr)
+        return nullptr;
+
+    wgpu::TextureDescriptor textureDesc;
+    textureDesc.dimension       = wgpu::TextureDimension::_2D;
+    textureDesc.format          = wgpu::TextureFormat::RGBA8Unorm;  // by convention for bmp, png and jpg file
+    textureDesc.mipLevelCount   = 1;
+    textureDesc.sampleCount     = 1;
+    textureDesc.size            = {(unsigned int)width, (unsigned int)height, 1};
+    textureDesc.usage           = wgpu::TextureUsage::TextureBinding | wgpu::TextureUsage::CopyDst;
+    textureDesc.viewFormatCount = 0;
+    textureDesc.viewFormats     = nullptr;
+    wgpu::Texture texture       = device.createTexture(textureDesc);
+
+    writeMipMaps(device, texture, textureDesc.size, textureDesc.mipLevelCount, pixelData);
+
+    stbi_image_free(pixelData);
+
+    if (pTextureView)
+    {
+        wgpu::TextureViewDescriptor textureViewDesc;
+        textureViewDesc.aspect          = wgpu::TextureAspect::All;
+        textureViewDesc.baseArrayLayer  = 0;
+        textureViewDesc.arrayLayerCount = 1;
+        textureViewDesc.baseMipLevel    = 0;
+        textureViewDesc.mipLevelCount   = textureDesc.mipLevelCount;
+        textureViewDesc.dimension       = wgpu::TextureViewDimension::_2D;
+        textureViewDesc.format          = textureDesc.format;
+        *pTextureView                   = texture.createView(textureViewDesc);
+    }
+
+    return texture;
 }
