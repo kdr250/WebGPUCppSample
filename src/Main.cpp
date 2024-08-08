@@ -3,18 +3,14 @@
 int main()
 {
     Application app;
-
-    if (!app.Initialize())
-    {
+    if (!app.onInit())
         return 1;
-    }
 
-    while (app.IsRunning())
+    while (app.isRunning())
     {
-        app.MainLoop();
+        app.onFrame();
     }
 
-    app.Terminate();
-
+    app.onFinish();
     return 0;
 }
