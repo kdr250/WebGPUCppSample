@@ -37,6 +37,7 @@ struct MyUniforms
 
 @group(0) @binding(0) var<uniform> uMyUniforms: MyUniforms;
 @group(0) @binding(1) var gradientTexture: texture_2d<f32>;
+@group(0) @binding(2) var textureSampler: sampler;
 
 const pi = 3.14159265359;
 
@@ -69,16 +70,14 @@ fn vs_main(in: VertexInput) -> VertexOutput
 	// Forward the normal
 	out.normal = (uMyUniforms.modelMatrix * vec4f(in.normal, 0.0)).xyz;
 	out.color = in.color;
-	// In plane.obj, the vertex xy coords range from -1 to 1
-    // and we remap this to (0, 256), the size of our texture.
-	out.uv = in.uv;
+	// Repeat the texture 6 times along each axis
+	out.uv = in.uv * 6.0;
 	return out;
 }
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4f
 {
-	let texelCoords = vec2i(in.uv * vec2f(textureDimensions(gradientTexture)));
-	let color = textureLoad(gradientTexture, texelCoords, 0).rgb;
+	let color = textureSample(gradientTexture, textureSampler, in.uv).rgb;
     return vec4f(color, uMyUniforms.color.a);
 }

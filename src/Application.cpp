@@ -24,6 +24,7 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -81,6 +82,7 @@ public:
     wgpu::TextureView depthTextureView;
     wgpu::Texture texture;
     wgpu::TextureView textureView;
+    wgpu::Sampler sampler;
 
     MyUniforms uniforms;
 
@@ -210,6 +212,15 @@ void Application::MainLoop()
                             offsetof(MyUniforms, time),
                             &data->uniforms.time,
                             sizeof(MyUniforms::time));
+
+    // Update view
+    float viewZ = glm::mix(0.0f, 0.25f, glm::cos(2 * PI * data->uniforms.time / 4) * 0.5 + 0.5);
+    data->uniforms.viewMatrix =
+        glm::lookAt(glm::vec3(-0.5f, -1.5f, viewZ + 0.25f), glm::vec3(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    data->queue.writeBuffer(data->uniformBuffer,
+                            offsetof(MyUniforms, viewMatrix),
+                            &data->uniforms.viewMatrix,
+                            sizeof(MyUniforms::viewMatrix));
 
     // Get the next target texture view
     wgpu::TextureView targetView = GetNextSurfaceTextureView();
@@ -412,7 +423,7 @@ void Application::InitializePipeline()
     pipelineDesc.multisample.alphaToCoverageEnabled = false;
 
     // Create binding layout. Since we now have 2 bindings, we use a vector to store them
-    std::vector<wgpu::BindGroupLayoutEntry> bindingLayoutEntries(2, wgpu::Default);
+    std::vector<wgpu::BindGroupLayoutEntry> bindingLayoutEntries(3, wgpu::Default);
     wgpu::BindGroupLayoutEntry& bindingLayout = bindingLayoutEntries[0];  // The uniform buffer binding
     bindingLayout.binding                     = 0;
     bindingLayout.visibility                  = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
@@ -424,6 +435,11 @@ void Application::InitializePipeline()
     textureBindingLayout.visibility                  = wgpu::ShaderStage::Fragment;
     textureBindingLayout.texture.sampleType          = wgpu::TextureSampleType::Float;
     textureBindingLayout.texture.viewDimension       = wgpu::TextureViewDimension::_2D;
+
+    wgpu::BindGroupLayoutEntry& samplerBindingLayout = bindingLayoutEntries[2];  // The texture sampler binding
+    samplerBindingLayout.binding                     = 2;
+    samplerBindingLayout.visibility                  = wgpu::ShaderStage::Fragment;
+    samplerBindingLayout.sampler.type                = wgpu::SamplerBindingType::Filtering;
 
     // Create a bind group layout
     wgpu::BindGroupLayoutDescriptor bindGroupLayoutDesc;
@@ -470,7 +486,7 @@ void Application::InitializePipeline()
     wgpu::TextureDescriptor textureDesc;
     textureDesc.dimension       = wgpu::TextureDimension::_2D;
     textureDesc.size            = {256, 256, 1};
-    textureDesc.mipLevelCount   = 1;
+    textureDesc.mipLevelCount   = 8;
     textureDesc.sampleCount     = 1;
     textureDesc.format          = wgpu::TextureFormat::RGBA8Unorm;
     textureDesc.usage           = wgpu::TextureUsage::TextureBinding | wgpu::TextureUsage::CopyDst;
@@ -484,39 +500,80 @@ void Application::InitializePipeline()
     textureViewDesc.baseArrayLayer  = 0;
     textureViewDesc.arrayLayerCount = 1;
     textureViewDesc.baseMipLevel    = 0;
-    textureViewDesc.mipLevelCount   = 1;
+    textureViewDesc.mipLevelCount   = textureDesc.mipLevelCount;
     textureViewDesc.dimension       = wgpu::TextureViewDimension::_2D;
     textureViewDesc.format          = textureDesc.format;
     data->textureView               = data->texture.createView(textureViewDesc);
     std::cout << "Texture view: " << data->textureView << std::endl;
 
-    // Create image data
-    std::vector<uint8_t> pixels(4 * textureDesc.size.width * textureDesc.size.height);
-    for (uint32_t i = 0; i < textureDesc.size.width; ++i)
-    {
-        for (uint32_t j = 0; j < textureDesc.size.height; ++j)
-        {
-            uint8_t* p = &pixels[4 * (j * textureDesc.size.width + i)];
-            p[0]       = (i / 16) % 2 == (j / 16) % 2 ? 255 : 0;  // r
-            p[1]       = ((i - j) / 16) % 2 == 0 ? 255 : 0;       // g
-            p[2]       = ((i + j) / 16) % 2 == 0 ? 255 : 0;       // b
-            p[3]       = 255;                                     // a
-        }
-    }
+    // Create a sampler
+    wgpu::SamplerDescriptor samplerDesc;
+    samplerDesc.addressModeU  = wgpu::AddressMode::Repeat;
+    samplerDesc.addressModeV  = wgpu::AddressMode::Repeat;
+    samplerDesc.addressModeW  = wgpu::AddressMode::Repeat;
+    samplerDesc.magFilter     = wgpu::FilterMode::Linear;
+    samplerDesc.minFilter     = wgpu::FilterMode::Linear;
+    samplerDesc.mipmapFilter  = wgpu::MipmapFilterMode::Linear;
+    samplerDesc.lodMinClamp   = 0.0f;
+    samplerDesc.lodMaxClamp   = 8.0f;
+    samplerDesc.compare       = wgpu::CompareFunction::Undefined;
+    samplerDesc.maxAnisotropy = 1;
+    data->sampler             = data->device.createSampler(samplerDesc);
 
     // Upload texture data
     wgpu::ImageCopyTexture destination;
-    destination.texture  = data->texture;
-    destination.mipLevel = 0;
-    destination.origin   = {0, 0, 0};                 // equivalent of the offset argument of Queue::writeBuffer
-    destination.aspect   = wgpu::TextureAspect::All;  // only relevant for depth/Stencil textures
+    destination.texture = data->texture;
+    destination.origin  = {0, 0, 0};                 // equivalent of the offset argument of Queue::writeBuffer
+    destination.aspect  = wgpu::TextureAspect::All;  // only relevant for depth/Stencil textures
 
     wgpu::TextureDataLayout source;
-    source.offset       = 0;
-    source.bytesPerRow  = 4 * textureDesc.size.width;
-    source.rowsPerImage = textureDesc.size.height;
+    source.offset = 0;
 
-    data->queue.writeTexture(destination, pixels.data(), pixels.size(), source, textureDesc.size);
+    wgpu::Extent3D mipLevelSize = textureDesc.size;
+    std::vector<uint8_t> previousLevelPixels;
+    for (uint32_t level = 0; level < textureDesc.mipLevelCount; ++level)
+    {
+        std::vector<uint8_t> pixels(4 * mipLevelSize.width * mipLevelSize.height);
+        for (uint32_t i = 0; i < mipLevelSize.width; ++i)
+        {
+            for (uint32_t j = 0; j < mipLevelSize.height; ++j)
+            {
+                uint8_t* p = &pixels[4 * (j * mipLevelSize.width + i)];
+                if (level == 0)
+                {
+                    // Our initial texture formula
+                    p[0] = (i / 16) % 2 == (j / 16) % 2 ? 255 : 0;  // r
+                    p[1] = ((i - j) / 16) % 2 == 0 ? 255 : 0;       // g
+                    p[2] = ((i + j) / 16) % 2 == 0 ? 255 : 0;       // b
+                }
+                else
+                {
+                    // Get the corresponding 4 pixels from the previous level
+                    uint8_t* p00 = &previousLevelPixels[4 * ((2 * j + 0) * (2 * mipLevelSize.width) + (2 * i + 0))];
+                    uint8_t* p01 = &previousLevelPixels[4 * ((2 * j + 0) * (2 * mipLevelSize.width) + (2 * i + 1))];
+                    uint8_t* p10 = &previousLevelPixels[4 * ((2 * j + 1) * (2 * mipLevelSize.width) + (2 * i + 0))];
+                    uint8_t* p11 = &previousLevelPixels[4 * ((2 * j + 1) * (2 * mipLevelSize.width) + (2 * i + 1))];
+                    // Average
+                    p[0] = (p00[0] + p01[0] + p10[0] + p11[0]) / 4;
+                    p[1] = (p00[1] + p01[1] + p10[1] + p11[1]) / 4;
+                    p[2] = (p00[2] + p01[2] + p10[2] + p11[2]) / 4;
+                }
+                p[3] = 255;  // a
+            }
+        }
+
+        destination.mipLevel = level;
+
+        source.bytesPerRow  = 4 * mipLevelSize.width;
+        source.rowsPerImage = mipLevelSize.height;
+
+        data->queue.writeTexture(destination, pixels.data(), pixels.size(), source, mipLevelSize);
+
+        mipLevelSize.width /= 2;
+        mipLevelSize.height /= 2;
+
+        previousLevelPixels = std::move(pixels);
+    }
 
     shaderModule.release();
 }
@@ -540,7 +597,7 @@ void Application::InitializeBuffers()
 {
     std::vector<VertexAttributes> vertexData;
 
-    bool success = loadGeometryFromObj("resources/shader/cube.obj", vertexData);
+    bool success = loadGeometryFromObj("resources/shader/plane.obj", vertexData);
     assert(success && "Could not load geometry!");
 
     // we will declare indexCount as a member of the Application class
@@ -566,13 +623,15 @@ void Application::InitializeBuffers()
     data->queue.writeBuffer(data->uniformBuffer, 0, &data->uniforms, sizeof(MyUniforms));
 
     // Create a binding
-    std::vector<wgpu::BindGroupEntry> bindings(2);
+    std::vector<wgpu::BindGroupEntry> bindings(3);
     bindings[0].binding     = 0;
     bindings[0].buffer      = data->uniformBuffer;
     bindings[0].offset      = 0;
     bindings[0].size        = sizeof(MyUniforms);
     bindings[1].binding     = 1;
     bindings[1].textureView = data->textureView;
+    bindings[2].binding     = 2;
+    bindings[2].sampler     = data->sampler;
 
     // A bind group contains one or multiple bindings
     wgpu::BindGroupDescriptor bindGroupDesc;
@@ -611,6 +670,8 @@ wgpu::RequiredLimits Application::GetRequiredLimits(wgpu::Adapter adapter) const
     requiredLimits.limits.maxTextureArrayLayers = 1;
     // Add the possibility to sample a texture in a shader
     requiredLimits.limits.maxSampledTexturesPerShaderStage = 1;
+    // sampler
+    requiredLimits.limits.maxSamplersPerShaderStage = 1;
 
     // These two limits are different because they are "minimum" limits,
     // they are the only ones we are may forward from the adapter's supported
