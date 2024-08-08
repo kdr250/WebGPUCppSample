@@ -28,6 +28,8 @@
 
 namespace fs = std::filesystem;
 
+constexpr float PI = 3.14159265358979323846f;
+
 /**
  * A structure that describes the data layout in the vertex buffer
  * We do not instantiate it but use it in `sizeof` and `offsetof`
@@ -37,6 +39,7 @@ struct VertexAttributes
     glm::vec3 position;
     glm::vec3 normal;
     glm::vec3 color;
+    glm::vec2 uv;
 };
 
 struct MyUniforms
@@ -340,7 +343,7 @@ void Application::InitializePipeline()
     pipelineDesc.primitive.cullMode         = wgpu::CullMode::None;
 
     wgpu::VertexBufferLayout pointBufferLayout;
-    std::vector<wgpu::VertexAttribute> vertexAttribs(3);
+    std::vector<wgpu::VertexAttribute> vertexAttribs(4);
 
     // Describe the position attribute
     vertexAttribs[0].shaderLocation = 0;  // @location(0)
@@ -356,6 +359,11 @@ void Application::InitializePipeline()
     vertexAttribs[2].shaderLocation = 2;  // @location(2)
     vertexAttribs[2].format         = wgpu::VertexFormat::Float32x3;
     vertexAttribs[2].offset         = offsetof(VertexAttributes, color);
+
+    // UV attribute
+    vertexAttribs[3].shaderLocation = 3;  // @location(3)
+    vertexAttribs[3].format         = wgpu::VertexFormat::Float32x2;
+    vertexAttribs[3].offset         = offsetof(VertexAttributes, uv);
 
     pointBufferLayout.attributeCount = static_cast<uint32_t>(vertexAttribs.size());
     pointBufferLayout.attributes     = vertexAttribs.data();
@@ -489,10 +497,10 @@ void Application::InitializePipeline()
         for (uint32_t j = 0; j < textureDesc.size.height; ++j)
         {
             uint8_t* p = &pixels[4 * (j * textureDesc.size.width + i)];
-            p[0]       = (uint8_t)i;  // r
-            p[1]       = (uint8_t)j;  // g
-            p[2]       = 128;         // b
-            p[3]       = 255;         // a
+            p[0]       = (i / 16) % 2 == (j / 16) % 2 ? 255 : 0;  // r
+            p[1]       = ((i - j) / 16) % 2 == 0 ? 255 : 0;       // g
+            p[2]       = ((i + j) / 16) % 2 == 0 ? 255 : 0;       // b
+            p[3]       = 255;                                     // a
         }
     }
 
@@ -532,7 +540,7 @@ void Application::InitializeBuffers()
 {
     std::vector<VertexAttributes> vertexData;
 
-    bool success = loadGeometryFromObj("resources/shader/plane.obj", vertexData);
+    bool success = loadGeometryFromObj("resources/shader/cube.obj", vertexData);
     assert(success && "Could not load geometry!");
 
     // we will declare indexCount as a member of the Application class
@@ -582,7 +590,7 @@ wgpu::RequiredLimits Application::GetRequiredLimits(wgpu::Adapter adapter) const
 
     wgpu::RequiredLimits requiredLimits = wgpu::Default;
     // We use at most 1 vertex attribute for now
-    requiredLimits.limits.maxVertexAttributes = 3;
+    requiredLimits.limits.maxVertexAttributes = 4;
     // We should also tell that we use 1 vertex buffers
     requiredLimits.limits.maxVertexBuffers = 1;
     // Maximum size of a buffer is 6 vertices of 2 float each
@@ -590,7 +598,7 @@ wgpu::RequiredLimits Application::GetRequiredLimits(wgpu::Adapter adapter) const
     // Maximum stride between 2 consecutive vertices in the vertex buffer
     requiredLimits.limits.maxVertexBufferArrayStride = sizeof(VertexAttributes);
     // There is a maximum of 3 float forwarded from vertex to fragment shader
-    requiredLimits.limits.maxInterStageShaderComponents = 6;
+    requiredLimits.limits.maxInterStageShaderComponents = 8;
     // We use at most 1 bind group for now
     requiredLimits.limits.maxBindGroups = 1;
     // We use at most 1 uniform buffer per stage
@@ -690,6 +698,11 @@ bool loadGeometryFromObj(const fs::path& path, std::vector<VertexAttributes>& ve
             vertexData[offset + i].color = {attrib.colors[3 * idx.vertex_index + 0],
                                             attrib.colors[3 * idx.vertex_index + 1],
                                             attrib.colors[3 * idx.vertex_index + 2]};
+
+            vertexData[offset + i].uv = {
+                attrib.texcoords[2 * idx.texcoord_index + 0],
+                1 - attrib.texcoords[2 * idx.texcoord_index + 1],
+            };
         }
     }
 
@@ -701,8 +714,9 @@ MyUniforms Application::createUniforms()
     MyUniforms uniforms;
 
     uniforms.modelMatrix      = glm::mat4x4(1.0);
-    uniforms.viewMatrix       = glm::scale(glm::mat4x4(1.0), glm::vec3(1.0f));
-    uniforms.projectionMatrix = glm::ortho(-1, 1, -1, 1, -1, 1);
+    uniforms.viewMatrix       = glm::lookAt(glm::vec3(-2.0f, -3.0f, 2.0f), glm::vec3(0.0f), glm::vec3(0, 0, 1));
+    uniforms.projectionMatrix = glm::perspective(45 * PI / 180, 640.0f / 480.0f, 0.01f, 100.0f);
+    uniforms.time             = 1.0f;
     uniforms.time             = 1.0f;
     uniforms.color            = {0.0f, 1.0f, 0.4f, 1.0f};
 
