@@ -1,17 +1,23 @@
 #include "Application.h"
 
+#include <GLFW/glfw3.h>
+#include <glfw3webgpu.h>
+
 #define WEBGPU_CPP_IMPLEMENTATION
 #include <webgpu/webgpu.hpp>
 
-#include <GLFW/glfw3.h>
-#include <glfw3webgpu.h>
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #define GLM_FORCE_LEFT_HANDED
 #include <glm/ext.hpp>
 #include <glm/glm.hpp>
-#include <magic_enum.hpp>
+
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tiny_obj_loader.h>
+
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
+
+#include <magic_enum.hpp>
 
 #ifdef __EMSCRIPTEN__
     #include <emscripten.h>
@@ -57,6 +63,7 @@ static_assert(sizeof(MyUniforms) % 16 == 0);
 
 wgpu::ShaderModule loadShaderModule(const fs::path& path, wgpu::Device device);
 bool loadGeometryFromObj(const fs::path& path, std::vector<VertexAttributes>& vertexData);
+wgpu::Texture loadTexture(const fs::path& path, wgpu::Device device);
 
 struct Application::AppData
 {
@@ -782,4 +789,9 @@ MyUniforms Application::createUniforms()
     uniforms.color            = {0.0f, 1.0f, 0.4f, 1.0f};
 
     return uniforms;
+}
+
+wgpu::Texture loadTexture(const fs::path& path, wgpu::Device device)
+{
+    // TODO
 }
