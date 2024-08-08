@@ -489,6 +489,7 @@ void Application::InitializePipeline()
         assert(texture != nullptr);
     }
     data->textureView = textureView;
+    data->texture     = texture;
 
     // Create a sampler
     wgpu::SamplerDescriptor samplerDesc;
