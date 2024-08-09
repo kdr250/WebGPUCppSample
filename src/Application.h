@@ -24,6 +24,11 @@ public:
     // A function called when the window is resized
     void onResize();
 
+    // Mouse events
+    void onMouseMove(double xpos, double ypos);
+    void onMouseButton(int button, int action, int mods);
+    void onScroll(double xoffset, double yoffset);
+
 private:
     bool initWindowAndDevice();
     void terminateWindowAndDevice();
@@ -49,6 +54,9 @@ private:
     void terminateBindGroup();
 
     void updateProjectionMatrix();
+    void updateViewMatrix();
+
+    void updateDragInertia();
 
 private:
     // (Just aliases to make notations lighter)
@@ -72,6 +80,26 @@ private:
     };
     // Have the compiler check byte alignment
     static_assert(sizeof(MyUniforms) % 16 == 0);
+
+    struct CameraState
+    {
+        vec2 angles = {0.8f, 0.5f};
+        float zoom  = -1.2f;
+    };
+
+    struct DragState
+    {
+        bool active = false;
+        vec2 startMouse;
+        CameraState startCameraState;
+
+        float sensitivity       = 0.01f;
+        float scrollSensitivity = 0.1f;
+
+        vec2 velocity = {0.0, 0.0};
+        vec2 previousDelta;
+        float intertia = 0.9f;
+    };
 
     // Window and Device
     GLFWwindow* m_window                  = nullptr;
@@ -108,4 +136,7 @@ private:
 
     // Bind Group
     wgpu::BindGroup m_bindGroup = nullptr;
+
+    CameraState m_cameraState;
+    DragState m_drag;
 };
