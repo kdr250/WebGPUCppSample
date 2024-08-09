@@ -24,6 +24,11 @@ public:
     // A function called when the window is resized
     void onResize();
 
+    // Mouse events
+    void onMouseMove(double xpos, double ypos);
+    void onMouseButton(int button, int action, int mods);
+    void onScroll(double xoffset, double yoffset);
+
 private:
     bool initWindowAndDevice();
     void terminateWindowAndDevice();

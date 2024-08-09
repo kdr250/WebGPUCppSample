@@ -158,6 +158,12 @@ void Application::onResize()
     updateProjectionMatrix();
 }
 
+void Application::onMouseMove(double xpos, double ypos) {}
+
+void Application::onMouseButton(int button, int action, int mods) {}
+
+void Application::onScroll(double xoffset, double yoffset) {}
+
 ///////////////////////////////////////////////////////////////////////////////
 // Private methods
 
@@ -242,7 +248,7 @@ bool Application::initWindowAndDevice()
 
     // Set the user pointer to be "this"
     glfwSetWindowUserPointer(m_window, this);
-    // Use a non-capturing lambda as resize callback
+    // Add window callbacks
     glfwSetFramebufferSizeCallback(m_window,
                                    [](GLFWwindow* window, int, int)
                                    {
@@ -250,6 +256,27 @@ bool Application::initWindowAndDevice()
                                        if (that != nullptr)
                                            that->onResize();
                                    });
+    glfwSetCursorPosCallback(m_window,
+                             [](GLFWwindow* window, double xpos, double ypos)
+                             {
+                                 auto that = reinterpret_cast<Application*>(glfwGetWindowUserPointer(window));
+                                 if (that != nullptr)
+                                     that->onMouseMove(xpos, ypos);
+                             });
+    glfwSetMouseButtonCallback(m_window,
+                               [](GLFWwindow* window, int button, int action, int mods)
+                               {
+                                   auto that = reinterpret_cast<Application*>(glfwGetWindowUserPointer(window));
+                                   if (that != nullptr)
+                                       that->onMouseButton(button, action, mods);
+                               });
+    glfwSetScrollCallback(m_window,
+                          [](GLFWwindow* window, double xoffset, double yoffset)
+                          {
+                              auto that = reinterpret_cast<Application*>(glfwGetWindowUserPointer(window));
+                              if (that != nullptr)
+                                  that->onScroll(xoffset, yoffset);
+                          });
 
     adapter.release();
     return m_device != nullptr;
