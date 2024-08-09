@@ -56,6 +56,8 @@ private:
     void updateProjectionMatrix();
     void updateViewMatrix();
 
+    void updateDragInertia();
+
 private:
     // (Just aliases to make notations lighter)
     using mat4x4 = glm::mat4x4;
@@ -93,6 +95,10 @@ private:
 
         float sensitivity       = 0.01f;
         float scrollSensitivity = 0.1f;
+
+        vec2 velocity = {0.0, 0.0};
+        vec2 previousDelta;
+        float intertia = 0.9f;
     };
 
     // Window and Device

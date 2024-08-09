@@ -49,6 +49,8 @@ bool Application::onInit()
 
 void Application::onFrame()
 {
+    updateDragInertia();
+
     glfwPollEvents();
 
     // Update uniform buffer
@@ -169,6 +171,10 @@ void Application::onMouseMove(double xpos, double ypos)
     // Clamp to avoid going too far when orbitting up/down
     m_cameraState.angles.y = glm::clamp(m_cameraState.angles.y, -PI / 2 + 1e-5f, PI / 2 - 1e-5f);
     updateViewMatrix();
+
+    // Inertia
+    m_drag.velocity      = delta - m_drag.previousDelta;
+    m_drag.previousDelta = delta;
 }
 
 void Application::onMouseButton(int button, int action, int /* modifiers */)
@@ -682,6 +688,22 @@ void Application::updateViewMatrix()
                         offsetof(MyUniforms, viewMatrix),
                         &m_uniforms.viewMatrix,
                         sizeof(MyUniforms::viewMatrix));
+}
+
+void Application::updateDragInertia()
+{
+    constexpr float eps = 1e-4f;
+
+    if (m_drag.active)
+        return;
+
+    if (std::abs(m_drag.velocity.x) < eps && std::abs(m_drag.velocity.y) < eps)
+        return;
+
+    m_cameraState.angles += m_drag.velocity;
+    m_cameraState.angles.y = glm::clamp(m_cameraState.angles.y, -PI / 2 + 1e-5f, PI / 2 - 1e-5f);
+    m_drag.velocity *= m_drag.intertia;
+    updateViewMatrix();
 }
 
 TextureView GetNextSurfaceTextureView(Surface surface)
