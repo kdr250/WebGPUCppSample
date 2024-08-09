@@ -158,11 +158,48 @@ void Application::onResize()
     updateProjectionMatrix();
 }
 
-void Application::onMouseMove(double xpos, double ypos) {}
+void Application::onMouseMove(double xpos, double ypos)
+{
+    if (!m_drag.active)
+        return;
 
-void Application::onMouseButton(int button, int action, int mods) {}
+    vec2 currentMouse    = vec2(-(float)xpos, (float)ypos);
+    vec2 delta           = (currentMouse - m_drag.startMouse) * m_drag.sensitivity;
+    m_cameraState.angles = m_drag.startCameraState.angles + delta;
+    // Clamp to avoid going too far when orbitting up/down
+    m_cameraState.angles.y = glm::clamp(m_cameraState.angles.y, -PI / 2 + 1e-5f, PI / 2 - 1e-5f);
+    updateViewMatrix();
+}
 
-void Application::onScroll(double xoffset, double yoffset) {}
+void Application::onMouseButton(int button, int action, int /* modifiers */)
+{
+    if (button == GLFW_MOUSE_BUTTON_LEFT)
+    {
+        switch (action)
+        {
+            case GLFW_PRESS:
+                m_drag.active = true;
+                double xpos, ypos;
+                glfwGetCursorPos(m_window, &xpos, &ypos);
+                m_drag.startMouse       = vec2(-(float)xpos, (float)ypos);
+                m_drag.startCameraState = m_cameraState;
+                break;
+            case GLFW_RELEASE:
+                m_drag.active = false;
+                break;
+
+            default:
+                break;
+        }
+    }
+}
+
+void Application::onScroll(double /* xoffset */, double yoffset)
+{
+    m_cameraState.zoom += m_drag.scrollSensitivity * static_cast<float>(yoffset);
+    m_cameraState.zoom = glm::clamp(m_cameraState.zoom, -2.0f, 2.0f);
+    updateViewMatrix();
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 // Private methods

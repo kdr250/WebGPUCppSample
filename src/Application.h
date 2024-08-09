@@ -85,6 +85,16 @@ private:
         float zoom  = -1.2f;
     };
 
+    struct DragState
+    {
+        bool active = false;
+        vec2 startMouse;
+        CameraState startCameraState;
+
+        float sensitivity       = 0.01f;
+        float scrollSensitivity = 0.1f;
+    };
+
     // Window and Device
     GLFWwindow* m_window                  = nullptr;
     wgpu::Instance m_instance             = nullptr;
@@ -122,4 +132,5 @@ private:
     wgpu::BindGroup m_bindGroup = nullptr;
 
     CameraState m_cameraState;
+    DragState m_drag;
 };
