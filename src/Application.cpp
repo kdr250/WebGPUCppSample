@@ -580,6 +580,8 @@ bool Application::initUniforms()
     m_uniforms.color            = {0.0f, 1.0f, 0.4f, 1.0f};
     m_queue.writeBuffer(m_uniformBuffer, 0, &m_uniforms, sizeof(MyUniforms));
 
+    updateViewMatrix();
+
     return m_uniformBuffer != nullptr;
 }
 
@@ -629,6 +631,20 @@ void Application::updateProjectionMatrix()
                         offsetof(MyUniforms, projectionMatrix),
                         &m_uniforms.projectionMatrix,
                         sizeof(MyUniforms::projectionMatrix));
+}
+
+void Application::updateViewMatrix()
+{
+    float cx              = cos(m_cameraState.angles.x);
+    float sx              = sin(m_cameraState.angles.x);
+    float cy              = cos(m_cameraState.angles.y);
+    float sy              = sin(m_cameraState.angles.y);
+    vec3 position         = vec3(cx * cy, sx * cy, sy) * std::exp(-m_cameraState.zoom);
+    m_uniforms.viewMatrix = glm::lookAt(position, vec3(0.0f), vec3(0, 0, 1));
+    m_queue.writeBuffer(m_uniformBuffer,
+                        offsetof(MyUniforms, viewMatrix),
+                        &m_uniforms.viewMatrix,
+                        sizeof(MyUniforms::viewMatrix));
 }
 
 TextureView GetNextSurfaceTextureView(Surface surface)

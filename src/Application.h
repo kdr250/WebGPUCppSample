@@ -54,6 +54,7 @@ private:
     void terminateBindGroup();
 
     void updateProjectionMatrix();
+    void updateViewMatrix();
 
 private:
     // (Just aliases to make notations lighter)
@@ -77,6 +78,12 @@ private:
     };
     // Have the compiler check byte alignment
     static_assert(sizeof(MyUniforms) % 16 == 0);
+
+    struct CameraState
+    {
+        vec2 angles = {0.8f, 0.5f};
+        float zoom  = -1.2f;
+    };
 
     // Window and Device
     GLFWwindow* m_window                  = nullptr;
@@ -113,4 +120,6 @@ private:
 
     // Bind Group
     wgpu::BindGroup m_bindGroup = nullptr;
+
+    CameraState m_cameraState;
 };
