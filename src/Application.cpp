@@ -146,6 +146,11 @@ bool Application::isRunning()
     return !glfwWindowShouldClose(m_window);
 }
 
+void Application::onResize()
+{
+    // TODO
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // Private methods
 
@@ -165,7 +170,7 @@ bool Application::initWindowAndDevice()
     }
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+    glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
     m_window = glfwCreateWindow(640, 480, "Learn WebGPU", NULL, NULL);
     if (!m_window)
     {
@@ -227,6 +232,17 @@ bool Application::initWindowAndDevice()
 #else
     m_swapChainFormat = TextureFormat::BGRA8Unorm;
 #endif
+
+    // Set the user pointer to be "this"
+    glfwSetWindowUserPointer(m_window, this);
+    // Use a non-capturing lambda as resize callback
+    glfwSetFramebufferSizeCallback(m_window,
+                                   [](GLFWwindow* window, int, int)
+                                   {
+                                       auto that = reinterpret_cast<Application*>(glfwGetWindowUserPointer(window));
+                                       if (that != nullptr)
+                                           that->onResize();
+                                   });
 
     adapter.release();
     return m_device != nullptr;

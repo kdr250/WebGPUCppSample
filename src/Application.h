@@ -21,6 +21,9 @@ public:
     // A function that tells if the application is still running.
     bool isRunning();
 
+    // A function called when the window is resized
+    void onResize();
+
 private:
     bool initWindowAndDevice();
     void terminateWindowAndDevice();
