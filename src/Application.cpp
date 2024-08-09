@@ -146,6 +146,18 @@ bool Application::isRunning()
     return !glfwWindowShouldClose(m_window);
 }
 
+void Application::onResize()
+{
+    // Terminate in reverse order
+    terminateDepthBuffer();
+
+    // Re-init
+    initSwapChain();
+    initDepthBuffer();
+
+    updateProjectionMatrix();
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // Private methods
 
@@ -165,7 +177,7 @@ bool Application::initWindowAndDevice()
     }
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+    glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
     m_window = glfwCreateWindow(640, 480, "Learn WebGPU", NULL, NULL);
     if (!m_window)
     {
@@ -228,6 +240,17 @@ bool Application::initWindowAndDevice()
     m_swapChainFormat = TextureFormat::BGRA8Unorm;
 #endif
 
+    // Set the user pointer to be "this"
+    glfwSetWindowUserPointer(m_window, this);
+    // Use a non-capturing lambda as resize callback
+    glfwSetFramebufferSizeCallback(m_window,
+                                   [](GLFWwindow* window, int, int)
+                                   {
+                                       auto that = reinterpret_cast<Application*>(glfwGetWindowUserPointer(window));
+                                       if (that != nullptr)
+                                           that->onResize();
+                                   });
+
     adapter.release();
     return m_device != nullptr;
 }
@@ -245,10 +268,14 @@ void Application::terminateWindowAndDevice()
 
 bool Application::initSwapChain()
 {
+    // get the current size of the window's framebuffer
+    int width, height;
+    glfwGetFramebufferSize(m_window, &width, &height);
+
     std::cout << "Creating swapchain..." << std::endl;
     SurfaceConfiguration config;
-    config.width           = 640;
-    config.height          = 480;
+    config.width           = static_cast<uint32_t>(width);
+    config.height          = static_cast<uint32_t>(height);
     config.usage           = TextureUsage::RenderAttachment;
     config.format          = m_swapChainFormat;
     config.viewFormatCount = 0;
@@ -264,13 +291,17 @@ bool Application::initSwapChain()
 
 bool Application::initDepthBuffer()
 {
+    // get the current size of the window's framebuffer
+    int width, height;
+    glfwGetFramebufferSize(m_window, &width, &height);
+
     // Create the depth texture
     TextureDescriptor depthTextureDesc;
     depthTextureDesc.dimension       = TextureDimension::_2D;
     depthTextureDesc.format          = m_depthTextureFormat;
     depthTextureDesc.mipLevelCount   = 1;
     depthTextureDesc.sampleCount     = 1;
-    depthTextureDesc.size            = {640, 480, 1};
+    depthTextureDesc.size            = {static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1};
     depthTextureDesc.usage           = TextureUsage::RenderAttachment;
     depthTextureDesc.viewFormatCount = 1;
     depthTextureDesc.viewFormats     = (WGPUTextureFormat*)&m_depthTextureFormat;
@@ -559,6 +590,18 @@ bool Application::initBindGroup()
 void Application::terminateBindGroup()
 {
     m_bindGroup.release();
+}
+
+void Application::updateProjectionMatrix()
+{
+    int width, height;
+    glfwGetFramebufferSize(m_window, &width, &height);
+    float ratio                 = width / (float)height;
+    m_uniforms.projectionMatrix = glm::perspective(45 * PI / 180, ratio, 0.01f, 100.0f);
+    m_queue.writeBuffer(m_uniformBuffer,
+                        offsetof(MyUniforms, projectionMatrix),
+                        &m_uniforms.projectionMatrix,
+                        sizeof(MyUniforms::projectionMatrix));
 }
 
 TextureView GetNextSurfaceTextureView(Surface surface)
