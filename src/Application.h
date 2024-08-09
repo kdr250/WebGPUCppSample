@@ -48,6 +48,8 @@ private:
     bool initBindGroup();
     void terminateBindGroup();
 
+    void updateProjectionMatrix();
+
 private:
     // (Just aliases to make notations lighter)
     using mat4x4 = glm::mat4x4;
