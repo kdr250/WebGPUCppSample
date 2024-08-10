@@ -188,6 +188,10 @@ void Application::onMouseMove(double xpos, double ypos)
 
 void Application::onMouseButton(int button, int action, int /* modifiers */)
 {
+    ImGuiIO& io = ImGui::GetIO();
+    if (io.WantCaptureMouse)
+        return;
+
     if (button == GLFW_MOUSE_BUTTON_LEFT)
     {
         switch (action)
