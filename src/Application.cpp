@@ -9,6 +9,10 @@
 #include <glm/ext.hpp>
 #include <glm/glm.hpp>
 
+#include <imgui.h>
+#include <imgui_impl_glfw.h>
+#include "backends/imgui_impl_wgpu.h"
+
 #include <array>
 #include <cassert>
 #include <filesystem>
@@ -43,6 +47,8 @@ bool Application::onInit()
     if (!initUniforms())
         return false;
     if (!initBindGroup())
+        return false;
+    if (!initGui())
         return false;
     return true;
 }
@@ -109,6 +115,8 @@ void Application::onFrame()
 
     renderPass.draw(m_vertexCount, 1, 0, 0);
 
+    updateGui(renderPass);
+
     renderPass.end();
     renderPass.release();
 
@@ -134,6 +142,7 @@ void Application::onFrame()
 
 void Application::onFinish()
 {
+    terminateGui();
     terminateBindGroup();
     terminateUniforms();
     terminateGeometry();
@@ -179,6 +188,10 @@ void Application::onMouseMove(double xpos, double ypos)
 
 void Application::onMouseButton(int button, int action, int /* modifiers */)
 {
+    ImGuiIO& io = ImGui::GetIO();
+    if (io.WantCaptureMouse)
+        return;
+
     if (button == GLFW_MOUSE_BUTTON_LEFT)
     {
         switch (action)
@@ -253,7 +266,7 @@ bool Application::initWindowAndDevice()
     requiredLimits.limits.minStorageBufferOffsetAlignment = supportedLimits.limits.minStorageBufferOffsetAlignment;
     requiredLimits.limits.minUniformBufferOffsetAlignment = supportedLimits.limits.minUniformBufferOffsetAlignment;
     requiredLimits.limits.maxInterStageShaderComponents   = 8;
-    requiredLimits.limits.maxBindGroups                   = 1;
+    requiredLimits.limits.maxBindGroups                   = 2;
     requiredLimits.limits.maxUniformBuffersPerShaderStage = 1;
     requiredLimits.limits.maxUniformBufferBindingSize     = 16 * 4 * sizeof(float);
     // Allow textures up to 2K
@@ -704,6 +717,70 @@ void Application::updateDragInertia()
     m_cameraState.angles.y = glm::clamp(m_cameraState.angles.y, -PI / 2 + 1e-5f, PI / 2 - 1e-5f);
     m_drag.velocity *= m_drag.intertia;
     updateViewMatrix();
+}
+
+bool Application::initGui()
+{
+    // Setup ImGui context
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGui::GetIO();
+
+    // Setup Platform/Renderer backends
+    ImGui_ImplGlfw_InitForOther(m_window, true);
+
+    ImGui_ImplWGPU_InitInfo wgpuInfo;
+    wgpuInfo.Device             = m_device;
+    wgpuInfo.NumFramesInFlight  = 3;
+    wgpuInfo.RenderTargetFormat = m_swapChainFormat;
+    wgpuInfo.DepthStencilFormat = m_depthTextureFormat;
+    ImGui_ImplWGPU_Init(&wgpuInfo);
+
+    return true;
+}
+
+void Application::terminateGui()
+{
+    ImGui_ImplGlfw_Shutdown();
+    ImGui_ImplWGPU_Shutdown();
+}
+
+void Application::updateGui(wgpu::RenderPassEncoder renderPass)
+{
+    // Start the ImGui frame
+    ImGui_ImplWGPU_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+
+    // Build our UI
+    static float f                  = 0.0f;
+    static int counter              = 0;
+    static bool show_demo_window    = true;
+    static bool show_another_window = false;
+    static ImVec4 clear_color       = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+
+    ImGui::Begin("Hello, world!");  // Create a window called "Hello, world!" and append into it.
+
+    ImGui::Text("This is some useful text.");           // Display some text (you can use a format strings too)
+    ImGui::Checkbox("Demo Window", &show_demo_window);  // Edit bools storing our window open/close state
+    ImGui::Checkbox("Another Window", &show_another_window);
+
+    ImGui::SliderFloat("float", &f, 0.0f, 1.0f);             // Edit 1 float using a slider from 0.0f to 1.0f
+    ImGui::ColorEdit3("clear color", (float*)&clear_color);  // Edit 3 floats representing a color
+
+    if (ImGui::Button("Button"))  // Buttons return true when clicked (most widgets return true when edited/activated)
+        counter++;
+    ImGui::SameLine();
+    ImGui::Text("counter = %d", counter);
+
+    ImGuiIO& io = ImGui::GetIO();
+    ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+    ImGui::End();
+
+    // Draw the UI
+    ImGui::EndFrame();
+    ImGui::Render();
+    ImGui_ImplWGPU_RenderDrawData(ImGui::GetDrawData(), renderPass);
 }
 
 TextureView GetNextSurfaceTextureView(Surface surface)
