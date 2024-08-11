@@ -285,7 +285,7 @@ bool Application::initWindowAndDevice()
     requiredLimits.limits.maxVertexBufferArrayStride      = sizeof(VertexAttributes);
     requiredLimits.limits.minStorageBufferOffsetAlignment = supportedLimits.limits.minStorageBufferOffsetAlignment;
     requiredLimits.limits.minUniformBufferOffsetAlignment = supportedLimits.limits.minUniformBufferOffsetAlignment;
-    requiredLimits.limits.maxInterStageShaderComponents   = 8;
+    requiredLimits.limits.maxInterStageShaderComponents   = 11;
     requiredLimits.limits.maxBindGroups                   = 2;
     requiredLimits.limits.maxUniformBuffersPerShaderStage = 2;
     requiredLimits.limits.maxUniformBufferBindingSize     = 16 * 4 * sizeof(float);
@@ -740,6 +740,12 @@ void Application::updateViewMatrix()
                         offsetof(MyUniforms, viewMatrix),
                         &m_uniforms.viewMatrix,
                         sizeof(MyUniforms::viewMatrix));
+
+    m_uniforms.cameraWorldPosition = position;
+    m_queue.writeBuffer(m_uniformBuffer,
+                        offsetof(MyUniforms, cameraWorldPosition),
+                        &m_uniforms.cameraWorldPosition,
+                        sizeof(MyUniforms::cameraWorldPosition));
 }
 
 void Application::updateDragInertia()
@@ -799,6 +805,9 @@ void Application::updateGui(wgpu::RenderPassEncoder renderPass)
         changed = ImGui::DragDirection("Direction #0", m_lightingUniforms.directions[0]) || changed;
         changed = ImGui::ColorEdit3("Color #1", glm::value_ptr(m_lightingUniforms.colors[1])) || changed;
         changed = ImGui::DragDirection("Direction #1", m_lightingUniforms.directions[1]) || changed;
+        changed = ImGui::SliderFloat("Hardness", &m_lightingUniforms.hardness, 1.0f, 100.0f) || changed;
+        changed = ImGui::SliderFloat("K Diffuse", &m_lightingUniforms.kd, 0.0f, 1.0f) || changed;
+        changed = ImGui::SliderFloat("K Specular", &m_lightingUniforms.ks, 0.0f, 1.0f) || changed;
         ImGui::End();
         m_lightingUniformsChanged = changed;
     }
