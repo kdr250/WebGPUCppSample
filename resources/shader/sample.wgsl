@@ -35,9 +35,16 @@ struct MyUniforms
     time: f32,
 };
 
+struct LightingUniforms
+{
+	directions: array<vec4f, 2>,
+	colors: array<vec4f, 2>,
+};
+
 @group(0) @binding(0) var<uniform> uMyUniforms: MyUniforms;
 @group(0) @binding(1) var baseColorTexture: texture_2d<f32>;
 @group(0) @binding(2) var textureSampler: sampler;
+@group(0) @binding(3) var<uniform> uLighting: LightingUniforms;
 
 const pi = 3.14159265359;
 
@@ -79,13 +86,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f
 {
 	// Compute shading
 	let normal = normalize(in.normal);
-	let lightDirection1 = vec3f(0.5, -0.9, 0.1);
-	let lightDirection2 = vec3f(0.2, 0.4, 0.3);
-	let lightColor1 = vec3f(1.0, 0.9, 0.6);
-	let lightColor2 = vec3f(0.6, 0.9, 1.0);
-	let shading1 = max(0.0, dot(lightDirection1, normal));
-	let shading2 = max(0.0, dot(lightDirection2, normal));
-	let shading = shading1 * lightColor1 + shading2 * lightColor2;
+	var shading = vec3f(0.0);
+	for (var i : i32 = 0; i < 2; i++)
+	{
+		let direction = normalize(uLighting.directions[i].xyz);
+		let color = uLighting.colors[i].rgb;
+		shading += max(0.0, dot(direction, normal)) * color;
+	}
 
 	// Sample texture
 	let baseColor = textureSample(baseColorTexture, textureSampler, in.uv).rgb;
