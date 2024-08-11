@@ -36,7 +36,7 @@ struct MyUniforms
 };
 
 @group(0) @binding(0) var<uniform> uMyUniforms: MyUniforms;
-@group(0) @binding(1) var gradientTexture: texture_2d<f32>;
+@group(0) @binding(1) var baseColorTexture: texture_2d<f32>;
 @group(0) @binding(2) var textureSampler: sampler;
 
 const pi = 3.14159265359;
@@ -77,6 +77,23 @@ fn vs_main(in: VertexInput) -> VertexOutput
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4f
 {
-	let color = textureSample(gradientTexture, textureSampler, in.uv).rgb;
-    return vec4f(color, uMyUniforms.color.a);
+	// Compute shading
+	let normal = normalize(in.normal);
+	let lightDirection1 = vec3f(0.5, -0.9, 0.1);
+	let lightDirection2 = vec3f(0.2, 0.4, 0.3);
+	let lightColor1 = vec3f(1.0, 0.9, 0.6);
+	let lightColor2 = vec3f(0.6, 0.9, 1.0);
+	let shading1 = max(0.0, dot(lightDirection1, normal));
+	let shading2 = max(0.0, dot(lightDirection2, normal));
+	let shading = shading1 * lightColor1 + shading2 * lightColor2;
+
+	// Sample texture
+	let baseColor = textureSample(baseColorTexture, textureSampler, in.uv).rgb;
+
+	// Combine texture and lighting
+	let color = baseColor * shading;
+
+    // Gamma-correction
+    let corrected_color = pow(color, vec3f(2.2));
+    return vec4f(corrected_color, uMyUniforms.color.a);
 }
