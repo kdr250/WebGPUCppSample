@@ -97,6 +97,11 @@ private:
     {
         std::array<vec4, 2> directions;
         std::array<vec4, 2> colors;
+        float hardness;
+        float kd;
+        float ks;
+
+        float _pad[1];
     };
     static_assert(sizeof(LightingUniforms) % 16 == 0);
 

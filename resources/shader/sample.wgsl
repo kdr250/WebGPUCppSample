@@ -41,6 +41,9 @@ struct LightingUniforms
 {
 	directions: array<vec4f, 2>,
 	colors: array<vec4f, 2>,
+	hardness: f32,
+	kd: f32,
+	ks: f32,
 };
 
 @group(0) @binding(0) var<uniform> uMyUniforms: MyUniforms;
@@ -98,8 +101,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f
 	
 	// Sample texture
 	let baseColor = textureSample(baseColorTexture, textureSampler, in.uv).rgb;
+	let kd = uLighting.kd; // strength of the diffuse effect
+	let ks = uLighting.ks; // strength of the specular effect
+	let hardness = uLighting.hardness;
 
-	var shading = vec3f(0.0);
+	var color = vec3f(0.0);
 	for (var i : i32 = 0; i < 2; i++)
 	{
 		let lightColor = uLighting.colors[i].rgb;
@@ -110,14 +116,10 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f
 
 		// We clamp the dot product to 0 when it is negative
 		let RoV = max(0.0, dot(R, V));
-		let hardness = 2.0;
 		let specular = pow(RoV, hardness);
 
-		shading += diffuse + specular;
+		color += baseColor * kd * diffuse + ks * specular;
 	}
-
-	// Combine texture and lighting
-	let color = baseColor * shading;
 
     // Gamma-correction
     let corrected_color = pow(color, vec3f(2.2));

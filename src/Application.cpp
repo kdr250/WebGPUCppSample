@@ -805,6 +805,9 @@ void Application::updateGui(wgpu::RenderPassEncoder renderPass)
         changed = ImGui::DragDirection("Direction #0", m_lightingUniforms.directions[0]) || changed;
         changed = ImGui::ColorEdit3("Color #1", glm::value_ptr(m_lightingUniforms.colors[1])) || changed;
         changed = ImGui::DragDirection("Direction #1", m_lightingUniforms.directions[1]) || changed;
+        changed = ImGui::SliderFloat("Hardness", &m_lightingUniforms.hardness, 1.0f, 100.0f) || changed;
+        changed = ImGui::SliderFloat("K Diffuse", &m_lightingUniforms.kd, 0.0f, 1.0f) || changed;
+        changed = ImGui::SliderFloat("K Specular", &m_lightingUniforms.ks, 0.0f, 1.0f) || changed;
         ImGui::End();
         m_lightingUniformsChanged = changed;
     }
