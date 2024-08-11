@@ -21,6 +21,7 @@ struct VertexOutput
     @location(0) color: vec3f,
 	@location(1) normal: vec3f,
 	@location(2) uv: vec2f,
+	@location(3) viewDirection: vec3f,
 };
 
 /**
@@ -32,6 +33,7 @@ struct MyUniforms
 	viewMatrix: mat4x4f,
 	modelMatrix: mat4x4f,
     color: vec4f,
+	cameraWorldPosition: vec3f,
     time: f32,
 };
 
@@ -73,11 +75,17 @@ fn makePerspectiveProj(ratio: f32, near: f32, far: f32, focalLength: f32) -> mat
 fn vs_main(in: VertexInput) -> VertexOutput
 {
     var out: VertexOutput;
-	out.position = uMyUniforms.projectionMatrix * uMyUniforms.viewMatrix * uMyUniforms.modelMatrix * vec4f(in.position, 1.0);
+
+	let worldPosition = uMyUniforms.modelMatrix * vec4<f32>(in.position, 1.0);
+	out.position = uMyUniforms.projectionMatrix * uMyUniforms.viewMatrix * worldPosition;
+	
 	// Forward the normal
 	out.normal = (uMyUniforms.modelMatrix * vec4f(in.normal, 0.0)).xyz;
 	out.color = in.color;
 	out.uv = in.uv;
+
+	// Then we only need the camera position to get the view direction
+	out.viewDirection = uMyUniforms.cameraWorldPosition - worldPosition.xyz;
 	return out;
 }
 
@@ -85,17 +93,28 @@ fn vs_main(in: VertexInput) -> VertexOutput
 fn fs_main(in: VertexOutput) -> @location(0) vec4f
 {
 	// Compute shading
-	let normal = normalize(in.normal);
+	let N = normalize(in.normal);
+	let V = normalize(in.viewDirection);
+	
+	// Sample texture
+	let baseColor = textureSample(baseColorTexture, textureSampler, in.uv).rgb;
+
 	var shading = vec3f(0.0);
 	for (var i : i32 = 0; i < 2; i++)
 	{
-		let direction = normalize(uLighting.directions[i].xyz);
-		let color = uLighting.colors[i].rgb;
-		shading += max(0.0, dot(direction, normal)) * color;
-	}
+		let lightColor = uLighting.colors[i].rgb;
+		let L = normalize(uLighting.directions[i].xyz);
+		let R = reflect(-L, N);
 
-	// Sample texture
-	let baseColor = textureSample(baseColorTexture, textureSampler, in.uv).rgb;
+		let diffuse = max(0.0, dot(L, N)) * lightColor;
+
+		// We clamp the dot product to 0 when it is negative
+		let RoV = max(0.0, dot(R, V));
+		let hardness = 2.0;
+		let specular = pow(RoV, hardness);
+
+		shading += diffuse + specular;
+	}
 
 	// Combine texture and lighting
 	let color = baseColor * shading;
