@@ -800,6 +800,7 @@ void Application::updateGui(wgpu::RenderPassEncoder renderPass)
         changed = ImGui::ColorEdit3("Color #1", glm::value_ptr(m_lightingUniforms.colors[1])) || changed;
         changed = ImGui::DragDirection("Direction #1", m_lightingUniforms.directions[1]) || changed;
         ImGui::End();
+        m_lightingUniformsChanged = changed;
     }
 
     // Draw the UI
@@ -835,7 +836,11 @@ void Application::terminateLightingUniforms()
 
 void Application::updateLightingUniforms()
 {
-    m_queue.writeBuffer(m_lightingUniformBuffer, 0, &m_lightingUniforms, sizeof(LightingUniforms));
+    if (m_lightingUniformsChanged)
+    {
+        m_queue.writeBuffer(m_lightingUniformBuffer, 0, &m_lightingUniforms, sizeof(LightingUniforms));
+        m_lightingUniformsChanged = false;
+    }
 }
 
 TextureView GetNextSurfaceTextureView(Surface surface)

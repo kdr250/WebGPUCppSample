@@ -151,8 +151,11 @@ private:
     // Uniforms
     wgpu::Buffer m_uniformBuffer = nullptr;
     MyUniforms m_uniforms;
+
+    // Lighting
     wgpu::Buffer m_lightingUniformBuffer = nullptr;
     LightingUniforms m_lightingUniforms;
+    bool m_lightingUniformsChanged = true;
 
     // Bind Group
     wgpu::BindGroup m_bindGroup = nullptr;
