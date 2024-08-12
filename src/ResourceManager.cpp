@@ -261,7 +261,7 @@ glm::mat3x3 ResourceManager::computeTBN(const VertexAttributes corners[3], const
 
 void ResourceManager::populateTextureFrameAttributes(std::vector<VertexAttributes>& vertexData)
 {
-    int triangleCount = vertexData.size() / 3;
+    int triangleCount = (int)vertexData.size() / 3;
     for (int t = 0; t < triangleCount; ++t)
     {
         VertexAttributes* v = &vertexData[3 * t];
