@@ -48,8 +48,9 @@ struct LightingUniforms
 
 @group(0) @binding(0) var<uniform> uMyUniforms: MyUniforms;
 @group(0) @binding(1) var baseColorTexture: texture_2d<f32>;
-@group(0) @binding(2) var textureSampler: sampler;
-@group(0) @binding(3) var<uniform> uLighting: LightingUniforms;
+@group(0) @binding(2) var normalTexture: texture_2d<f32>;
+@group(0) @binding(3) var textureSampler: sampler;
+@group(0) @binding(4) var<uniform> uLighting: LightingUniforms;
 
 const pi = 3.14159265359;
 
