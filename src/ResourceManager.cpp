@@ -91,6 +91,8 @@ bool ResourceManager::loadGeometryFromObj(const path& path, std::vector<VertexAt
         }
     }
 
+    populateTextureFrameAttributes(vertexData);
+
     return true;
 }
 
@@ -223,4 +225,53 @@ Texture ResourceManager::loadTexture(const path& path, Device device, TextureVie
     }
 
     return texture;
+}
+
+glm::mat3x3 ResourceManager::computeTBN(const VertexAttributes corners[3], const vec3& expectedN)
+{
+    // What we call e in the figure
+    vec3 ePos1 = corners[1].position - corners[0].position;
+    vec3 ePos2 = corners[2].position - corners[0].position;
+
+    // What we call \bar e in the figure
+    vec2 eUV1 = corners[1].uv - corners[0].uv;
+    vec2 eUV2 = corners[2].uv - corners[0].uv;
+
+    vec3 T = normalize(ePos1 * eUV2.y - ePos2 * eUV1.y);
+    vec3 B = normalize(ePos2 * eUV1.x - ePos1 * eUV2.x);
+    vec3 N = cross(T, B);
+
+    // Fix overall orientation
+    if (glm::dot(N, expectedN) < 0.0)
+    {
+        T = -T;
+        B = -B;
+        N = -N;
+    }
+
+    // Ortho-normalize the (T, B, expectedN) frame
+    // a. "Remove" the part of T that is along expected N
+    N = expectedN;
+    T = normalize(T - dot(T, N) * N);
+    // b. Recompute B from N and T
+    B = cross(N, T);
+
+    return glm::mat3x3(T, B, N);
+}
+
+void ResourceManager::populateTextureFrameAttributes(std::vector<VertexAttributes>& vertexData)
+{
+    int triangleCount = vertexData.size() / 3;
+    for (int t = 0; t < triangleCount; ++t)
+    {
+        VertexAttributes* v = &vertexData[3 * t];
+
+        // We assign these to the 3 corners of the triangle
+        for (int k = 0; k < 3; ++k)
+        {
+            glm::mat3x3 TBN = computeTBN(v, v[k].normal);
+            v[k].tangent    = TBN[0];
+            v[k].bitangent  = TBN[1];
+        }
+    }
 }

@@ -146,9 +146,11 @@ private:
     wgpu::RenderPipeline m_pipeline         = nullptr;
 
     // Texture
-    wgpu::Sampler m_sampler         = nullptr;
-    wgpu::Texture m_texture         = nullptr;
-    wgpu::TextureView m_textureView = nullptr;
+    wgpu::Sampler m_sampler                  = nullptr;
+    wgpu::Texture m_baseColorTexture         = nullptr;
+    wgpu::TextureView m_baseColorTextureView = nullptr;
+    wgpu::Texture m_normalTexture            = nullptr;
+    wgpu::TextureView m_normalTextureView    = nullptr;
 
     // Geometry
     wgpu::Buffer m_vertexBuffer = nullptr;
