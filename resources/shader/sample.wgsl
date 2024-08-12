@@ -96,8 +96,9 @@ fn vs_main(in: VertexInput) -> VertexOutput
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4f
 {
-	// Compute shading
-	let N = normalize(in.normal);
+	// Sample normal
+	let encodedN = textureSample(normalTexture, textureSampler, in.uv).rgb;
+	let N = normalize(encodedN - 0.5);
 	let V = normalize(in.viewDirection);
 	
 	// Sample texture
